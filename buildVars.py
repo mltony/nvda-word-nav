@@ -11,25 +11,25 @@ addon_info = {
 	# for previously unpublished addons, please follow the community guidelines at:
 	# https://bitbucket.org/nvdaaddonteam/todo/raw/master/guideLines.txt
 	# add-on Name, internal for nvda
-	"addon_name" : "tonysEnhancements",
+	"addon_name" : "wordNav",
 	# Add-on summary, usually the user visible name of the addon.
 	# Translators: Summary for this add-on to be shown on installation and add-on information.
-	"addon_summary" : _("Tony's enhancements"),
+	"addon_summary" : _("WordNav"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-	"addon_description" : _("""Various NVDA enhancements."""),
+	"addon_description" : _("""Improved navigate by word commands."""),
 	# version
-	"addon_version" : "1.7",
+	"addon_version" : "0.1dev",
 	# Author(s)
 	"addon_author" : u"Tony Malykh <anton.malykh@gmail.com>",
 	# URL for the add-on documentation support
-	"addon_url" : "https://github.com/mltony/nvda-tonys-enhancements/",
+	"addon_url" : "https://github.com/mltony/nvda-word-nav/",
 	# Documentation file name
 	"addon_docFileName" : "readme.html",
 	# Minimum NVDA version supported (e.g. "2018.3")
 	"addon_minimumNVDAVersion" : "2019.3.0",
 	# Last NVDA version supported/tested (e.g. "2018.4", ideally more recent than minimum version)
-	"addon_lastTestedNVDAVersion" : "2019.3.0",
+	"addon_lastTestedNVDAVersion" : "2020.3.0",
 	# Add-on update channel (default is stable or None)
 	"addon_updateChannel" : None,
 }
