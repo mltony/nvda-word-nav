@@ -14,6 +14,7 @@ import core
 import copy
 import ctypes
 from ctypes import create_string_buffer, byref
+import cursorManager
 import documentBase
 import editableText
 import globalPluginHandler
@@ -76,7 +77,7 @@ module = "wordNav"
 def initConfiguration():
     confspec = {
         "overrideMoveByWord" : "boolean( default=True)",
-        "enableMoveByWordEx" : "boolean( default=True)",
+        "enableInBrowseMode" : "boolean( default=True)",
         "assignmentIndex": "integer( default=9, min=0, max=10)",
         "bulkyWordPunctuation" : f"string( default='():')",
         "applicationsBlacklist" : f"string( default='')",
@@ -175,11 +176,11 @@ class SettingsDialog(SettingsPanel):
         label = _("Use enhanced move by word commands for control+LeftArrow/RightArrow in editables.")
         self.overrideMoveByWordCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
         self.overrideMoveByWordCheckbox.Value = getConfig("overrideMoveByWord")
-      # checkbox enableMoveByWordEx
-        # Translators: Checkbox for enableMoveByWordEx
-        label = _("Enable move by fine/bulky word commands with Control+Windows+LeftArrow/RightArrow in editables. Left control moves by fine word, right control moves by bulky word.")
-        self.enableMoveByWordExCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
-        self.enableMoveByWordExCheckbox.Value = getConfig("enableMoveByWordEx")
+      # checkbox enableInBrowseMode
+        # Translators: Checkbox for enableInBrowseMode
+        label = _("Enable word navigation in browse mode.")
+        self.enableInBrowseModeCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
+        self.enableInBrowseModeCheckbox.Value = getConfig("enableInBrowseMode")
       # Command assignment Combo box
         # Translators: Label for Command assignment combo box
         label = _("WordNav commands assignment:")
@@ -199,7 +200,7 @@ class SettingsDialog(SettingsPanel):
 
     def onSave(self):
         setConfig("overrideMoveByWord", self.overrideMoveByWordCheckbox.Value)
-        setConfig("enableMoveByWordEx", self.enableMoveByWordExCheckbox.Value)
+        setConfig("enableInBrowseMode", self.enableInBrowseModeCheckbox.Value)
         setConfig("assignmentIndex", self.commandAssignmentCombobox.Selection)
         setConfig("bulkyWordPunctuation", self.bulkyWordPunctuationEdit.Value)
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
@@ -321,6 +322,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         editableText.EditableText.script_caret_moveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_caretMoveByWordEx(selfself, gesture, *args, **kwargs)
         editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordEx",
         editableText.EditableText._EditableText__gestures["kb:control+Windows+RightArrow"] = "caret_moveByWordEx",
+        self.originalMoveBack = cursorManager.CursorManager.script_moveByWord_back
+        self.originalMoveForward = cursorManager.CursorManager.script_moveByWord_forward
+        cursorManager.CursorManager.script_moveByWord_back = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
+        cursorManager.CursorManager.script_moveByWord_forward = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
+        cursorManager.CursorManager.script_cursorMoveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWordEx(selfself, gesture, *args, **kwargs)
+        cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"] = "cursorMoveByWordEx",
+        cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"] = "cursorMoveByWordEx",
 
 
     def  removeHooks(self):
@@ -328,6 +336,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         del editableText.EditableText.script_caret_moveByWordEx
         del editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"]
         del editableText.EditableText._EditableText__gestures["kb:control+Windows+RightArrow"]
+        cursorManager.CursorManager.script_moveByWord_back = self.originalMoveBack
+        cursorManager.CursorManager.script_moveByWord_forward = self.originalMoveForward
+        del cursorManager.CursorManager.script_cursorMoveByWordEx
+        del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"]
+        del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"]
 
     def isBlacklistedApp(self):
         focus = api.getFocusObject()
@@ -335,7 +348,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         if appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(","):
             return True
         return False
-    
+
 
     def script_caretMoveByWord(self, selfself, gesture):
         if self.isBlacklistedApp() or not getConfig('overrideMoveByWord'):
@@ -414,6 +427,106 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=controlTypes.REASON_CARET)
                     return
                 else:
+                    lineInfo.collapse()
+                    result = lineInfo.move(textInfos.UNIT_PARAGRAPH, direction)
+                    if result == 0:
+                        self.beeper.fancyBeep('HF', 100, left=25, right=25)
+                        return
+                    lineInfo.expand(textInfos.UNIT_PARAGRAPH)
+                    # now try to find next word again on next/previous line
+                    if direction > 0:
+                        caret = -1
+                    else:
+                        caret = len(lineInfo.text)
+            #raise Exception('Failed to find next word')
+            self.beeper.fancyBeep('HF', 100, left=25, right=25)
+        except NotImplementedError as e:
+            return onError(e)
+
+    def script_cursorMoveByWord(self, selfself, gesture):
+        if 'leftArrow' == gesture.mainKeyName:
+            onError = lambda e:  self.originalMoveBack(selfself, gesture)
+        elif 'rightArrow' == gesture.mainKeyName:
+            onError = lambda e:  self.originalMoveForward(selfself, gesture)
+        else:
+            raise Exception("Impossible!")
+
+        if self.isBlacklistedApp() or not getConfig('enableInBrowseMode'):
+            return onError(None)
+        functions = None
+        for modVk, modExt in gesture.generalizedModifiers:
+            if modVk == winUser.VK_CONTROL:
+                if not modExt:
+                    # Left control
+                    functions = leftControlFunctions
+                else:
+                    # Right control
+                    functions = rightControlFunctions
+        if functions is None:
+            raise Exception("Control is not pressed - impossible condition!")
+        regex = getRegexByFunction(functions)
+        return self.cursorMoveByWordImpl(selfself, gesture, regex, onError)
+
+
+    def script_cursorMoveByWordEx(self, selfself, gesture):
+        regex = getRegexByFunction(controlWindowsFunctions)
+        if self.isBlacklistedApp() or not getConfig('enableInBrowseMode') or regex is None:
+            gesture.send()
+            return
+        def onError(e):
+            raise e
+        return self.cursorMoveByWordImpl(selfself, gesture, regex, onError)
+
+    def cursorMoveByWordImpl(self, selfself, gesture, wordRe, onError):
+        try:
+            if 'leftArrow' == gesture.mainKeyName:
+                direction = -1
+            elif 'rightArrow' == gesture.mainKeyName:
+                direction = 1
+            else:
+                return onError(None)
+            caretInfo = selfself.makeTextInfo(textInfos.POSITION_CARET)
+            caretInfo.collapse(end=(direction > 0))
+            lineInfo = caretInfo.copy()
+            lineInfo.expand(textInfos.UNIT_PARAGRAPH)
+            offsetInfo = lineInfo.copy()
+            offsetInfo.setEndPoint(caretInfo, 'endToEnd')
+            caret = len(offsetInfo.text)
+            for lineAttempt in range(100):
+                lineText = lineInfo.text.rstrip('\r\n')
+                isEmptyLine = len(lineText.strip()) == 0
+                boundaries = [m.start() for m in wordRe.finditer(lineText)]
+                boundaries = sorted(list(set(boundaries)))
+                if direction > 0:
+                    newWordIndex = bisect.bisect_right(boundaries, caret)
+                else:
+                    newWordIndex = bisect.bisect_left(boundaries, caret) - 1
+                if not isEmptyLine and (0 <= newWordIndex < len(boundaries) - 1):
+                    # Next word is found in this paragraph
+                    if lineAttempt == 0:
+                        adjustment = boundaries[newWordIndex] - caret
+                        newInfo = caretInfo
+                        newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
+                    else:
+                        newInfo = lineInfo
+                        if direction > 0:
+                            adjustment =  boundaries[newWordIndex]
+                            newInfo.collapse(end=False)
+                        else:
+                            adjustment =  boundaries[newWordIndex] - len(lineInfo.text)
+                            newInfo.collapse(end=True)
+                        result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
+                    if newWordIndex + 1 < len(boundaries):
+                        newInfo.move(
+                            textInfos.UNIT_CHARACTER,
+                            boundaries[newWordIndex + 1] - boundaries[newWordIndex],
+                            endPoint='end',
+                        )
+                    newInfo.updateCaret()
+                    speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=controlTypes.REASON_CARET)
+                    return
+                else:
+                    # Next word will be found in the following paragraph
                     lineInfo.collapse()
                     result = lineInfo.move(textInfos.UNIT_PARAGRAPH, direction)
                     if result == 0:
