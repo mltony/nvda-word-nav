@@ -329,9 +329,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         del editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"]
         del editableText.EditableText._EditableText__gestures["kb:control+Windows+RightArrow"]
 
+    def isBlacklistedApp(self):
+        focus = api.getFocusObject()
+        appName = focus.appModule.appName
+        if appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(","):
+            return True
+        return False
+    
 
     def script_caretMoveByWord(self, selfself, gesture):
-        if not getConfig('overrideMoveByWord'):
+        if self.isBlacklistedApp() or not getConfig('overrideMoveByWord'):
             return self.originalMoveByWord(selfself, gesture)
         onError = lambda e: self.originalMoveByWord(selfself, gesture)
         functions = None
@@ -351,7 +358,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def script_caretMoveByWordEx(self, selfself, gesture):
         regex = getRegexByFunction(controlWindowsFunctions)
-        if not getConfig('overrideMoveByWord') or regex is None:
+        if self.isBlacklistedApp() or not getConfig('overrideMoveByWord') or regex is None:
             gesture.send()
             return
         def onError(e):
