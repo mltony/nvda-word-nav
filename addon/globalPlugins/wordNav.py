@@ -485,6 +485,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 direction = 1
             else:
                 return onError(None)
+            mylog(f"Moving direction={direction}")
             caretInfo = selfself.makeTextInfo(textInfos.POSITION_CARET)
             caretInfo.collapse(end=(direction > 0))
             lineInfo = caretInfo.copy()
@@ -494,15 +495,29 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             caret = len(offsetInfo.text)
             for lineAttempt in range(100):
                 lineText = lineInfo.text.rstrip('\r\n')
+                mylog("current paragraph:")
+                mylog(lineText)
                 isEmptyLine = len(lineText.strip()) == 0
                 boundaries = [m.start() for m in wordRe.finditer(lineText)]
                 boundaries = sorted(list(set(boundaries)))
+                if lineAttempt > 0:
+                    # we need to update caret, since this is not the original paragraph we're in
+                    if direction > 0:
+                        caret = -1
+                    else:
+                        caret = boundaries[-1]
+                mylog(f"isEmptyLine={isEmptyLine}")
+                mylog("boundaries=" + ",".join(map(str, boundaries)))
+                mylog(f"len(boundaries)={len(boundaries)}")
+                mylog(f"caret={caret}")
                 if direction > 0:
                     newWordIndex = bisect.bisect_right(boundaries, caret)
                 else:
                     newWordIndex = bisect.bisect_left(boundaries, caret) - 1
+                mylog(f"newWordIndex={newWordIndex}")
                 if not isEmptyLine and (0 <= newWordIndex < len(boundaries) - 1):
                     # Next word is found in this paragraph
+                    mylog("this para!")
                     if lineAttempt == 0:
                         adjustment = boundaries[newWordIndex] - caret
                         newInfo = caretInfo
@@ -527,6 +542,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     return
                 else:
                     # Next word will be found in the following paragraph
+                    mylog("next para!")
                     lineInfo.collapse()
                     result = lineInfo.move(textInfos.UNIT_PARAGRAPH, direction)
                     if result == 0:
@@ -534,10 +550,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         return
                     lineInfo.expand(textInfos.UNIT_PARAGRAPH)
                     # now try to find next word again on next/previous line
-                    if direction > 0:
-                        caret = -1
-                    else:
-                        caret = len(lineInfo.text)
             #raise Exception('Failed to find next word')
             self.beeper.fancyBeep('HF', 100, left=25, right=25)
         except NotImplementedError as e:
