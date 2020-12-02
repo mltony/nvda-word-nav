@@ -173,12 +173,12 @@ class SettingsDialog(SettingsPanel):
         sHelper = gui.guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
       # checkbox override move by word
         # Translators: Checkbox for override move by word
-        label = _("Use enhanced move by word commands for control+LeftArrow/RightArrow in editables.")
+        label = _("Enable WordNav in editables")
         self.overrideMoveByWordCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
         self.overrideMoveByWordCheckbox.Value = getConfig("overrideMoveByWord")
       # checkbox enableInBrowseMode
         # Translators: Checkbox for enableInBrowseMode
-        label = _("Enable word navigation in browse mode.")
+        label = _("Enable WordNav in browse mode.")
         self.enableInBrowseModeCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
         self.enableInBrowseModeCheckbox.Value = getConfig("enableInBrowseMode")
       # left control assignment Combo box
@@ -210,7 +210,7 @@ class SettingsDialog(SettingsPanel):
       # MultiWord word count
         # Translators: Label for multiWord wordCount edit box
         self.wordCountEdit = gui.guiHelper.LabeledControlHelper(self, _("Word count for multiWord navigation:"), wx.TextCtrl).control
-        self.wordCountEdit.Value = getConfig("wordCount")
+        self.wordCountEdit.Value = str(getConfig("wordCount"))
 
       # applicationsBlacklist edit
         # Translators: Label for blacklisted applications edit box
