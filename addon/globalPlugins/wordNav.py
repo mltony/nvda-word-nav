@@ -78,10 +78,12 @@ def initConfiguration():
     confspec = {
         "overrideMoveByWord" : "boolean( default=True)",
         "enableInBrowseMode" : "boolean( default=True)",
-        "leftControlAssignmentIndex": "integer( default=2, min=0, max=30)",
-        "rightControlAssignmentIndex": "integer( default=1, min=0, max=30)",
-        "controlWindowsAssignmentIndex": "integer( default=3, min=0, max=30)",
+        "leftControlAssignmentIndex": "integer( default=3, min=0, max=4)",
+        "rightControlAssignmentIndex": "integer( default=1, min=0, max=4)",
+        "leftControlWindowsAssignmentIndex": "integer( default=2, min=0, max=4)",
+        "rightControlWindowsAssignmentIndex": "integer( default=4, min=0, max=4)",
         "bulkyWordPunctuation" : f"string( default='():')",
+        "wordCount": "integer( default=5, min=1, max=1000)",
         "applicationsBlacklist" : f"string( default='')",
     }
     config.conf.spec[module] = confspec
@@ -143,11 +145,13 @@ controlWindowsFunctions = "0bf0000fbfb"
 
 def getRegexByFunction(index):
     if index == 1:
-        return wordRe
+        return wordRe,1
     elif index == 2:
-        return generateWordRebulky()
+        return generateWordRebulky(),1
     elif index == 3:
-        return wordReFine
+        return wordReFine,1
+    elif index == 4:
+        return generateWordRebulky(), getConfig("wordCount")
     else:
         return None
 
@@ -159,23 +163,11 @@ class SettingsDialog(SettingsPanel):
         _("Notepad++ style navigation"),
         _("Bulky word navigation"),
         _("Fine word navigation"),
+        _("MultiWord navigation"),
     ]
     controlWindowsAssignmentText = [
         _("Unassigned"),
     ] + controlAssignmentText[1:]
-    commandAssignmentText = [
-        "Left or Right Control = navigate by word, Control+Windows = unassigned",
-        "Left or Right Control = navigate by word, Control+Windows = navigate by bulky word",
-        "Left or Right Control = navigate by word, Control+Windows = navigate by fine word",
-        "Left Control = navigate by word, Right Control = navigate by bulky word, Control+Windows = unassigned",
-        "Left Control = navigate by word, Right Control = navigate by fine word, Control+Windows = unassigned",
-        "Left Control = navigate by bulky word, Right Control = navigate by word, Control+Windows = unassigned",
-        "Left Control = navigate by fine word, Right Control = navigate by word, Control+Windows = unassigned",
-        "Left Control = navigate by word, Right Control = navigate by bulky word, Control+Windows = navigate by fine word",
-        "Left Control = navigate by word, Right Control = navigate by fine word, Control+Windows = navigate by bulky word",
-        "Left Control = navigate by bulky word, Right Control = navigate by word, Control+Windows = navigate by fine word",
-        "Left Control = navigate by fine word, Right Control = navigate by word, Control+Windows = navigate by bulky word",
-    ]
 
     def makeSettings(self, settingsSizer):
         sHelper = gui.guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
@@ -199,17 +191,26 @@ class SettingsDialog(SettingsPanel):
         label = _("Right control behavior:")
         self.rightControlAssignmentCombobox = sHelper.addLabeledControl(label, wx.Choice, choices=self.controlAssignmentText)
         self.rightControlAssignmentCombobox.Selection = getConfig("rightControlAssignmentIndex")
-      # Control+Windows assignment Combo box
+      # Left Control+Windows assignment Combo box
         # Translators: Label for control+windows assignment combo box
-        label = _("Control+Windows behavior:")
-        self.controlWindowsAssignmentCombobox = sHelper.addLabeledControl(label, wx.Choice, choices=self.controlWindowsAssignmentText)
-        self.controlWindowsAssignmentCombobox.Selection = getConfig("controlWindowsAssignmentIndex")
+        label = _("Left Control+Windows behavior:")
+        self.leftControlWindowsAssignmentCombobox = sHelper.addLabeledControl(label, wx.Choice, choices=self.controlWindowsAssignmentText)
+        self.leftControlWindowsAssignmentCombobox.Selection = getConfig("leftControlWindowsAssignmentIndex")
         
+      # Right Control+Windows assignment Combo box
+        # Translators: Label for control+windows assignment combo box
+        label = _("Right Control+Windows behavior:")
+        self.rightControlWindowsAssignmentCombobox = sHelper.addLabeledControl(label, wx.Choice, choices=self.controlWindowsAssignmentText)
+        self.rightControlWindowsAssignmentCombobox.Selection = getConfig("rightControlWindowsAssignmentIndex")
 
       # bulkyWordPunctuation
         # Translators: Label for bulkyWordPunctuation edit box
         self.bulkyWordPunctuationEdit = gui.guiHelper.LabeledControlHelper(self, _("Bulky word separators:"), wx.TextCtrl).control
         self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordPunctuation")
+      # MultiWord word count
+        # Translators: Label for multiWord wordCount edit box
+        self.wordCountEdit = gui.guiHelper.LabeledControlHelper(self, _("Word count for multiWord navigation:"), wx.TextCtrl).control
+        self.wordCountEdit.Value = getConfig("wordCount")
 
       # applicationsBlacklist edit
         # Translators: Label for blacklisted applications edit box
@@ -217,12 +218,21 @@ class SettingsDialog(SettingsPanel):
         self.applicationsBlacklistEdit.Value = getConfig("applicationsBlacklist")
 
     def onSave(self):
+        try:
+            if int(self.wordCountEdit.Value) <= 1:
+                raise Exception()
+        except:
+            self.wordCountEdit.SetFocus()
+            ui.message(_("WordCount must be a positive integer greater than 2."))
+            return
         setConfig("overrideMoveByWord", self.overrideMoveByWordCheckbox.Value)
         setConfig("enableInBrowseMode", self.enableInBrowseModeCheckbox.Value)
         setConfig("leftControlAssignmentIndex", self.leftControlAssignmentCombobox.Selection)
         setConfig("rightControlAssignmentIndex", self.rightControlAssignmentCombobox.Selection)
-        setConfig("controlWindowsAssignmentIndex", self.controlWindowsAssignmentCombobox.Selection)
+        setConfig("leftControlWindowsAssignmentIndex", self.leftControlWindowsAssignmentCombobox.Selection)
+        setConfig("rightControlWindowsAssignmentIndex", self.rightControlWindowsAssignmentCombobox.Selection)
         setConfig("bulkyWordPunctuation", self.bulkyWordPunctuationEdit.Value)
+        setConfig("wordCount", int(self.wordCountEdit.Value))
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
 
 
@@ -369,36 +379,37 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return True
         return False
 
-
-    def script_caretMoveByWord(self, selfself, gesture):
-        option = None
+    def getControl(self, gesture):
         for modVk, modExt in gesture.generalizedModifiers:
             if modVk == winUser.VK_CONTROL:
                 if not modExt:
                     # Left control
-                    option = "leftControlAssignmentIndex"
+                    return "left"
                 else:
                     # Right control
-                    option = "rightControlAssignmentIndex"
-        if option is None:
-            raise Exception("Control is not pressed - impossible condition!")
-        regex = getRegexByFunction(getConfig(option))
+                    return "right"
+        raise Exception("Control is not pressed - please don't reassign WordNav keystrokes!")
+        
+    def script_caretMoveByWord(self, selfself, gesture):
+        option = f"{self.getControl(gesture)}ControlAssignmentIndex"
+        regex, wordCount = getRegexByFunction(getConfig(option))
         if not regex or self.isBlacklistedApp() or not getConfig('overrideMoveByWord'):
             return self.originalMoveByWord(selfself, gesture)
         onError = lambda e: self.originalMoveByWord(selfself, gesture)
-        return self.caretMoveByWordImpl(gesture, regex, onError)
+        return self.caretMoveByWordImpl(gesture, regex, onError, wordCount)
 
 
     def script_caretMoveByWordEx(self, selfself, gesture):
-        regex = getRegexByFunction(getConfig("controlWindowsAssignmentIndex"))
+        option = f"{self.getControl(gesture)}ControlWindowsAssignmentIndex"
+        regex, wordCount = getRegexByFunction(getConfig(option))
         if self.isBlacklistedApp() or not getConfig('overrideMoveByWord') or regex is None:
             gesture.send()
             return
         def onError(e):
             raise e
-        return self.caretMoveByWordImpl(gesture, regex, onError)
+        return self.caretMoveByWordImpl(gesture, regex, onError, wordCount)
 
-    def caretMoveByWordImpl(self, gesture, wordRe, onError):
+    def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
         try:
             if 'leftArrow' == gesture.mainKeyName:
@@ -433,6 +444,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     # Next word found in the same paragraph
                     mylog("This para!")
                     if lineAttempt == 0:
+                        if wordCount > 1:
+                            # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
+                            newWordIndex += (wordCount - 1) * direction
+                            newWordIndex = max(0, newWordIndex)
+                            newWordIndex = min(newWordIndex, len(boundaries) - 1)
                         adjustment = boundaries[newWordIndex] - caret
                         newInfo = caretInfo
                         newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
@@ -444,9 +460,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     if newWordIndex + 1 < len(boundaries):
                         mylog("This is not the end of line word, so need to make a non-empty textInfo")
+                        followingWordIndex = newWordIndex + wordCount
+                        followingWordIndex = max(0, followingWordIndex)
+                        followingWordIndex = min(followingWordIndex, len(boundaries) - 1)
                         newInfo.move(
                             textInfos.UNIT_CHARACTER,
-                            boundaries[newWordIndex + 1] - boundaries[newWordIndex],
+                            boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
                     newInfo.updateCaret()
@@ -478,33 +497,23 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             onError = lambda e:  self.originalMoveForward(selfself, gesture)
         else:
             raise Exception("Impossible!")
-        option = None
-        for modVk, modExt in gesture.generalizedModifiers:
-            if modVk == winUser.VK_CONTROL:
-                if not modExt:
-                    # Left control
-                    option = "leftControlAssignmentIndex"
-                else:
-                    # Right control
-                    option = "rightControlAssignmentIndex"
-        if option is None:
-            raise Exception("Control is not pressed - impossible condition!")
-        regex = getRegexByFunction(getConfig(option))
+        option = f"{self.getControl(gesture)}ControlAssignmentIndex"
+        regex, wordCount = getRegexByFunction(getConfig(option))
         if not regex or self.isBlacklistedApp() or not getConfig('enableInBrowseMode'):
             return onError(None)
-        return self.cursorMoveByWordImpl(selfself, gesture, regex, onError)
-
+        return self.cursorMoveByWordImpl(selfself, gesture, regex, onError, wordCount)
 
     def script_cursorMoveByWordEx(self, selfself, gesture):
-        regex = getRegexByFunction(getConfig("controlWindowsAssignmentIndex"))
+        option = f"{self.getControl(gesture)}ControlWindowsAssignmentIndex"
+        regex, wordCount = getRegexByFunction(getConfig(option))
         if self.isBlacklistedApp() or not getConfig('enableInBrowseMode') or regex is None:
             gesture.send()
             return
         def onError(e):
             raise e
-        return self.cursorMoveByWordImpl(selfself, gesture, regex, onError)
+        return self.cursorMoveByWordImpl(selfself, gesture, regex, onError, wordCount)
 
-    def cursorMoveByWordImpl(self, selfself, gesture, wordRe, onError):
+    def cursorMoveByWordImpl(self, selfself, gesture, wordRe, onError, wordCount=1):
         # Implementation in browse mode
         try:
             if 'leftArrow' == gesture.mainKeyName:
@@ -547,6 +556,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     # Next word is found in this paragraph
                     mylog("this para!")
                     if lineAttempt == 0:
+                        if wordCount > 1:
+                            # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
+                            newWordIndex += (wordCount - 1) * direction
+                            newWordIndex = max(0, newWordIndex)
+                            newWordIndex = min(newWordIndex, len(boundaries) - 2)
                         adjustment = boundaries[newWordIndex] - caret
                         newInfo = caretInfo
                         newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
@@ -561,9 +575,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             
                         result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     if newWordIndex + 1 < len(boundaries):
+                        followingWordIndex = newWordIndex + wordCount
+                        followingWordIndex = max(0, followingWordIndex)
+                        followingWordIndex = min(followingWordIndex, len(boundaries) - 1)
                         newInfo.move(
                             textInfos.UNIT_CHARACTER,
-                            boundaries[newWordIndex + 1] - boundaries[newWordIndex],
+                            boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
                     newInfo.updateCaret()

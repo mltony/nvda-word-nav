@@ -5,13 +5,14 @@ Most text editors support Control+LeftArrow/RightArrow commands for word navigat
 
 Please note that a prototype of WordNav was formerly a part of [Tony's enhancements](https://github.com/mltony/nvda-tonys-enhancements/) add-on. Please either uninstall it or upgrade to [Tony's enhancements latest stable version](https://github.com/mltony/nvda-tonys-enhancements/releases/latest/download/tonysEnhancements.nvda-addon) to avoid conflicts.
 
-WordNav supports three definitions of the word:
+Currently WordNav supports four definitions of the word:
 
 - Notepad++ definition, that treats alphanumeric characters as words, and adjacent punctuation marks are also treated as words. This should be the most convenient word definition for the majority of users.
 - Fine word definition splits `camelCaseIdentifiers` and `underscore_separated_identifiers` into separate parts, thus allowing the cursor to go into long identifiers.
 - Bulky word definition treats almost all punctuation symbols adjacent to text as part of a single word, therefore it would treat paths like `C:\directory\subdirectory\file.txt` as a single word.
+- Multiword definition, that groups several words together. The amount of words is configurable.
 
-WordNav overrides `Control+LeftArrow/RightArrow` command and allows to differentiate between gestures with left control key and right control key. Additionally WordNav allows to add new `Control+Windows+LeftArrow/RightArrow` gestures. You can map these gestures onto word definitions in WordNav settings panel.
+WordNav overrides `Control+LeftArrow/RightArrow` command and adds new `Control+Windows+LeftArrow/RightArrow` command; it differentiates between gestures pressed with left control and right control key, thus it is possible to assign all four navigation commands to gestures at the same time.
 
 Please note however, that at this time WordNav doesn't modify `Control+Shift+LeftArrow/RightArrow` gestures to select words, since implementation of such commands are significantly more complicated.
 
