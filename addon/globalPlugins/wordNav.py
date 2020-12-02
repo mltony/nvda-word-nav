@@ -153,7 +153,7 @@ def getRegexByFunction(index):
     elif index == 4:
         return generateWordRebulky(), getConfig("wordCount")
     else:
-        return None
+        return None, None
 
 class SettingsDialog(SettingsPanel):
     # Translators: Title for the settings dialog
