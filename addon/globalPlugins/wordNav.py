@@ -468,8 +468,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
-                    newInfo.updateCaret()
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=controlTypes.REASON_CARET)
+                    newInfo.collapse()
+                    newInfo.updateCaret()
                     return
                 else:
                     # New word found in the next para!
@@ -583,8 +584,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
-                    newInfo.updateCaret()
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=controlTypes.REASON_CARET)
+                    newInfo.collapse()
+                    newInfo.updateCaret()
                     return
                 else:
                     # Next word will be found in the following paragraph
