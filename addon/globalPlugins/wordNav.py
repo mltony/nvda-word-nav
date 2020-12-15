@@ -214,7 +214,7 @@ class SettingsDialog(SettingsPanel):
 
       # applicationsBlacklist edit
         # Translators: Label for blacklisted applications edit box
-        self.applicationsBlacklistEdit = gui.guiHelper.LabeledControlHelper(self, _("Disable SentenceNav in applications (comma-separated list)"), wx.TextCtrl).control
+        self.applicationsBlacklistEdit = gui.guiHelper.LabeledControlHelper(self, _("Disable WordNav in applications (comma-separated list)"), wx.TextCtrl).control
         self.applicationsBlacklistEdit.Value = getConfig("applicationsBlacklist")
 
     def onSave(self):

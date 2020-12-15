@@ -14,9 +14,11 @@ Currently WordNav supports four definitions of the word, assigned to different g
 
 Gestures can be customized in WordNav settings panel.
 
-Please note however, that at this time WordNav doesn't modify `Control+Shift+LeftArrow/RightArrow` gestures to select words, since implementation of such commands are significantly more complicated.
+## Notes
 
-Please also note that WordNav doesn't work reliably in VSCode, since due to its internal optimizations, VSCode presents only a few lines of file contents at a time, that change dynamically, and this occasionally interferes with WordNav algorithm.
+- At this time WordNav doesn't modify `Control+Shift+LeftArrow/RightArrow` gestures to select words, since implementation of such commands are significantly more complicated.
+- If you would like to use virtual desktops feature of Windows 10, please remember to disable Control+Windows+Arrows keyboard shortcuts either in WordNav Settings panel, or in NVDA Input gestures dialog.
+- WordNav doesn't work reliably in VSCode, since due to its internal optimizations, VSCode presents only a few lines of file contents at a time, that change dynamically, and this occasionally interferes with WordNav algorithm.
 
 
 ##  Downloads
