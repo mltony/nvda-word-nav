@@ -205,16 +205,16 @@ class SettingsDialog(SettingsPanel):
 
       # bulkyWordPunctuation
         # Translators: Label for bulkyWordPunctuation edit box
-        self.bulkyWordPunctuationEdit = gui.guiHelper.LabeledControlHelper(self, _("Bulky word separators:"), wx.TextCtrl).control
+        self.bulkyWordPunctuationEdit = sHelper.addLabeledControl(_("Bulky word separators:"), wx.TextCtrl)
         self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordPunctuation")
       # MultiWord word count
         # Translators: Label for multiWord wordCount edit box
-        self.wordCountEdit = gui.guiHelper.LabeledControlHelper(self, _("Word count for multiWord navigation:"), wx.TextCtrl).control
+        self.wordCountEdit = sHelper.addLabeledControl(_("Word count for multiWord navigation:"), wx.TextCtrl)
         self.wordCountEdit.Value = str(getConfig("wordCount"))
 
       # applicationsBlacklist edit
         # Translators: Label for blacklisted applications edit box
-        self.applicationsBlacklistEdit = gui.guiHelper.LabeledControlHelper(self, _("Disable WordNav in applications (comma-separated list)"), wx.TextCtrl).control
+        self.applicationsBlacklistEdit = sHelper.addLabeledControl(_("Disable WordNav in applications (comma-separated list)"), wx.TextCtrl)
         self.applicationsBlacklistEdit.Value = getConfig("applicationsBlacklist")
 
     def onSave(self):
