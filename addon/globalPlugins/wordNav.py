@@ -113,6 +113,7 @@ wordRe = re.compile(wordReString)
 # 5. Word letter, that is not  underscore, preceded by underscore.
 #6. Capital letter preceded by a lower-case letter.
 wordReFineString = wordReString + "|(?<=_)(?!_)\w|(?<=[a-z])[A-Z]"
+wordReFineString += r"|(?<=\d)[a-zA-Z]|(?<=[a-zA-Z])\d"
 wordReFine = re.compile(wordReFineString)
 
 # Regular expression for bulky words. Treats any punctuation signs as part of word.
