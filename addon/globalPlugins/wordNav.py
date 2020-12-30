@@ -16,6 +16,7 @@ import ctypes
 from ctypes import create_string_buffer, byref
 import cursorManager
 import documentBase
+import functools
 import editableText
 import globalPluginHandler
 import gui
@@ -391,6 +392,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     return "right"
         raise Exception("Control is not pressed - please don't reassign WordNav keystrokes!")
         
+    @functools.lru_cache(maxsize=100)
+    def computeBoundariesCached(self, text, wordRe):
+        boundaries = [m.start() for m in wordRe.finditer(text)]
+        boundaries = sorted(list(set(boundaries)))
+        return boundaries
     def script_caretMoveByWord(self, selfself, gesture):
         option = f"{self.getControl(gesture)}ControlAssignmentIndex"
         regex, wordCount = getRegexByFunction(getConfig(option))
@@ -443,8 +449,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 mylog(f"lineAttempt={lineAttempt}; paragraph:")
                 mylog(lineText)
                 isEmptyLine = len(lineText.strip()) == 0
-                boundaries = [m.start() for m in wordRe.finditer(lineText)]
-                boundaries = sorted(list(set(boundaries)))
+                boundaries = self.computeBoundariesCached(lineText, wordRe)
                 mylog(f"boundaries={boundaries}, isEmptyLine={isEmptyLine}")
                 if direction > 0:
                     newWordIndex = bisect.bisect_right(boundaries, caret)
@@ -559,8 +564,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 mylog("current paragraph:")
                 mylog(lineText)
                 isEmptyLine = len(lineText.strip()) == 0
-                boundaries = [m.start() for m in wordRe.finditer(lineText)]
-                boundaries = sorted(list(set(boundaries)))
+                boundaries = self.computeBoundariesCached(lineText, wordRe)
                 if lineAttempt > 0:
                     # we need to update caret, since this is not the original paragraph we're in
                     if direction > 0:
