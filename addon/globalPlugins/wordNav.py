@@ -412,6 +412,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
+        def preprocessText(lineText):
+            return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
         try:
             if 'leftArrow' == gesture.mainKeyName:
                 direction = -1
@@ -419,17 +421,25 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 direction = 1
             else:
                 return onError(None)
-            mylog(f"direction={direction}")
+            
             focus = api.getFocusObject()
+            if focus.appModule.appName == "devenv":
+                # In visual Studio paragraph textInfo returns the whole document.
+                # Therefore use UNIT_LINE instead
+                unit = textInfos.UNIT_LINE
+            else:
+                unit = textInfos.UNIT_PARAGRAPH
+            mylog(f"direction={direction} unit={unit}")
             caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
             caretInfo.collapse(end=(direction > 0))
             lineInfo = caretInfo.copy()
-            lineInfo.expand(textInfos.UNIT_PARAGRAPH)
+            lineInfo.expand(unit)
             offsetInfo = lineInfo.copy()
             offsetInfo.setEndPoint(caretInfo, 'endToEnd')
-            caret = len(offsetInfo.text)
+            caret = len(preprocessText(offsetInfo.text))
             for lineAttempt in range(100):
                 lineText = lineInfo.text.rstrip('\r\n')
+                lineText = preprocessText(lineText)
                 mylog(f"lineAttempt={lineAttempt}; paragraph:")
                 mylog(lineText)
                 isEmptyLine = len(lineText.strip()) == 0
@@ -451,6 +461,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             newWordIndex = max(0, newWordIndex)
                             newWordIndex = min(newWordIndex, len(boundaries) - 1)
                         adjustment = boundaries[newWordIndex] - caret
+                        mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
                         newInfo = caretInfo
                         newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     else:
@@ -477,11 +488,22 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     # New word found in the next para!
                     mylog("Next para!")
                     lineInfo.collapse()
-                    result = lineInfo.move(textInfos.UNIT_PARAGRAPH, direction)
-                    if result == 0:
+                    result = lineInfo.move(unit, direction)
+                    if result != 0:
+                        result2 = 1
+                        if direction > 0:
+                            # In Visual Studio 2019 when we are in the last paragraph/line, it still allows us to move further by another paragraph/line.
+                            # In this case the cursor just jumps to the end of that line, but the result ==1,
+                            # Making us believe that we just found another line.
+                            # As a result, subsequent call to expand will just return us back to the beginning of that same line.
+                            # In order to avoid this, we need to try moving forward by one more character,
+                            # in order to test whether there is something there.
+                            tempInfo = lineInfo.copy()
+                            result2 = tempInfo.move(textInfos.UNIT_CHARACTER, 1)
+                    if result == 0 or result2 == 0:
                         self.beeper.fancyBeep('HF', 100, left=25, right=25)
                         return
-                    lineInfo.expand(textInfos.UNIT_PARAGRAPH)
+                    lineInfo.expand(unit)
                     # now try to find next word again on next/previous line
                     if direction > 0:
                         caret = -1
