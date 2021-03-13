@@ -51,6 +51,12 @@ import wx
 
 winmm = ctypes.windll.winmm
 
+try:
+    REASON_CARET = controlTypes.REASON_CARET
+except AttributeError:
+    REASON_CARET = controlTypes.OutputReason.CARET
+
+
 
 debug = False
 if debug:
@@ -485,7 +491,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
-                    speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=controlTypes.REASON_CARET)
+                    speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                     newInfo.collapse()
                     newInfo.updateCaret()
                     return
@@ -611,7 +617,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
-                    speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=controlTypes.REASON_CARET)
+                    speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                     newInfo.collapse()
                     newInfo.updateCaret()
                     return
