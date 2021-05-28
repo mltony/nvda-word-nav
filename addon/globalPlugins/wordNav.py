@@ -34,7 +34,6 @@ import nvwave
 import operator
 import os
 import re
-import sayAllHandler
 from scriptHandler import script, willSayAllResume
 import speech
 import struct
