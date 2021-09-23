@@ -57,7 +57,7 @@ except AttributeError:
 
 
 
-debug = False
+debug = True
 if debug:
     import threading
     LOG_FILE_NAME = "C:\\Users\\tony\\Dropbox\\1.txt"
@@ -421,10 +421,40 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             raise e
         return self.caretMoveByWordImpl(gesture, regex, onError, wordCount)
 
+
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
+        tones.beep(500, 50)
+        useKeystrokes = True
         def preprocessText(lineText):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
+        def makeVkInput(vkCodes):
+            result = []
+            if not isinstance(vkCodes, list):
+                vkCodes = [vkCodes]
+            for vk in vkCodes:
+                input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+                input.ii.ki.wVk = vk
+                result.append(input)
+            for vk in reversed(vkCodes):
+                input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+                input.ii.ki.wVk = vk
+                input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
+                result.append(input)
+            return result
+
+        def goToPosition(selectionPresent, offset):
+            # This function would be too slow for offsets > 1000
+            mylog(f"goToPosition({selectionPresent}, {offset}):")
+            inputs = []
+            if selectionPresent:
+                inputs.extend(makeVkInput(winUser.VK_LEFT) )
+            if offset >= 0:
+                inputs.extend(makeVkInput(winUser.VK_RIGHT) * offset)
+            else:
+                inputs.extend(makeVkInput(winUser.VK_LEFT) * (-offset))
+            with keyboardHandler.ignoreInjection():
+                winUser.SendInput(inputs)
         try:
             if 'leftArrow' == gesture.mainKeyName:
                 direction = -1
@@ -441,6 +471,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             else:
                 unit = textInfos.UNIT_PARAGRAPH
             mylog(f"direction={direction} unit={unit}")
+            selectionInfo = focus.makeTextInfo(textInfos.POSITION_SELECTION)
+            selectionPresent = len(selectionInfo.text) > 0
+            offset = 0
             caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
             caretInfo.collapse(end=(direction > 0))
             lineInfo = caretInfo.copy()
@@ -471,12 +504,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             newWordIndex = max(0, newWordIndex)
                             newWordIndex = min(newWordIndex, len(boundaries) - 1)
                         adjustment = boundaries[newWordIndex] - caret
+                        if useKeystrokes:
+                            offset += adjustment
                         mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
                         newInfo = caretInfo
                         newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     else:
                         newInfo = lineInfo
                         adjustment =  boundaries[newWordIndex]
+                        if useKeystrokes:
+                            if direction > 0:
+                                offset += adjustment
+                            else:
+                                offset -= len(lineText) - adjustment
                         newInfo.collapse(end=False)
                         mylog(f"adjustment={adjustment}")
                         result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
@@ -491,14 +531,27 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             endPoint='end',
                         )
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
-                    newInfo.collapse()
-                    newInfo.updateCaret()
+                    if useKeystrokes:
+                        goToPosition(selectionPresent, offset)
+                    else:
+                        newInfo.collapse()
+                        newInfo.updateCaret()
                     return
                 else:
                     # New word found in the next para!
                     mylog("Next para!")
                     lineInfo.collapse()
-                    result = lineInfo.move(unit, direction)
+                    if useKeystrokes:
+                        if lineAttempt == 0:
+                            if direction > 0:
+                                offset += len(lineText) - caret
+                            else:
+                                offset -= caret
+                        else:
+                            offset += direction * len(lineText)
+                        # Also don't forget about newline character itself:
+                        offset += direction
+                    result = lineInfo.move(unit,         direction)
                     if result != 0:
                         result2 = 1
                         if direction > 0:
