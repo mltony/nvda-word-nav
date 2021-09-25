@@ -430,11 +430,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
         def makeVkInput(vkCodes):
             result = []
-            for controlVk in [winUser.VK_LCONTROL, winUser.VK_RCONTROL]: # * 1000:
-                input = winUser.Input(type=winUser.INPUT_KEYBOARD)
-                input.ii.ki.wVk = controlVk
-                input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
-                result.append(input)
 
             if not isinstance(vkCodes, list):
                 vkCodes = [vkCodes]
@@ -456,16 +451,25 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             mylog(f"injectKeystroke({vkCode}, {hWnd})")
             #WM_KEYDOWN                      =0x0100
             WM_KEYUP                        =0x0101
+            WM_SYSKEYUP                        = 0x0105
             #winUser.PostMessage(hWnd, WM_KEYDOWN, vkCode, 1)
             winUser.PostMessage(hWnd, WM_KEYUP, vkCode, 1 | (1<<30) | (1<<31))
+            time.sleep(0.1)
         def goToPosition(selectionPresent, offset):
             # This function would be too slow for offsets > 1000
             mylog(f"goToPosition({selectionPresent}, {offset}):")
             focus = api.getFocusObject()
             injectKeystroke(focus.windowHandle, winUser.VK_LCONTROL)
-            injectKeystroke(focus.windowHandle, winUser.VK_LCONTROL)
+            injectKeystroke(focus.windowHandle, winUser.VK_CONTROL)
+            injectKeystroke(focus.windowHandle, winUser.VK_RCONTROL)
             time.sleep(0.1)
             inputs = []
+            for controlVk in [winUser.VK_LCONTROL, winUser.VK_RCONTROL, winUser.VK_CONTROL]: # * 1000:
+                input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+                input.ii.ki.wVk = controlVk
+                input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
+                inputs.append(input)
+
             if selectionPresent:
                 inputs.extend(makeVkInput(winUser.VK_LEFT) )
             if offset >= 0:
