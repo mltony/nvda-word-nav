@@ -430,6 +430,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
         def makeVkInput(vkCodes):
             result = []
+            for controlVk in [winUser.VK_LCONTROL, winUser.VK_RCONTROL]: # * 1000:
+                input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+                input.ii.ki.wVk = controlVk
+                input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
+                result.append(input)
+
             if not isinstance(vkCodes, list):
                 vkCodes = [vkCodes]
             for vk in vkCodes:
