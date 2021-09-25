@@ -448,10 +448,23 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
                 result.append(input)
             return result
-
+        def injectKeystroke(hWnd, vkCode):
+            # Here we use PostMessage() and WM_KEYDOWN event to inject keystroke into the terminal.
+            # Alternative ways, such as WM_CHAR event, or using SendMessage can work in plain command prompt, but they don't appear to work in any falvours of ssh.
+            # We don't use SendInput() function, since it can only send keystrokes to the active focused window,
+            # and here we would like to be able to send keystrokes to console window regardless whether it is focused or not.
+            mylog(f"injectKeystroke({vkCode}, {hWnd})")
+            #WM_KEYDOWN                      =0x0100
+            WM_KEYUP                        =0x0101
+            #winUser.PostMessage(hWnd, WM_KEYDOWN, vkCode, 1)
+            winUser.PostMessage(hWnd, WM_KEYUP, vkCode, 1 | (1<<30) | (1<<31))
         def goToPosition(selectionPresent, offset):
             # This function would be too slow for offsets > 1000
             mylog(f"goToPosition({selectionPresent}, {offset}):")
+            focus = api.getFocusObject()
+            injectKeystroke(focus.windowHandle, winUser.VK_LCONTROL)
+            injectKeystroke(focus.windowHandle, winUser.VK_LCONTROL)
+            time.sleep(0.1)
             inputs = []
             if selectionPresent:
                 inputs.extend(makeVkInput(winUser.VK_LEFT) )
