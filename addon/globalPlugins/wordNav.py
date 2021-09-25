@@ -424,7 +424,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
-        tones.beep(500, 50)
+        
         useKeystrokes = True
         def preprocessText(lineText):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
@@ -455,20 +455,39 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             #winUser.PostMessage(hWnd, WM_KEYDOWN, vkCode, 1)
             winUser.PostMessage(hWnd, WM_KEYUP, vkCode, 1 | (1<<30) | (1<<31))
             time.sleep(0.1)
+        def attachAndHack():
+            tones.beep(500, 50)
+            focus = api.getFocusObject()
+            hwnd =  focus.windowHandle
+            #processID=winUser.getWindowThreadProcessID(hwnd)[0]
+            processID,ThreadId = winUser.getWindowThreadProcessID(hwnd)
+            AttachThreadInput = winUser.user32.AttachThreadInput
+            AttachThreadInput(ctypes.windll.kernel32.GetCurrentThreadId(), ThreadId, True)
+            PBYTE256 = ctypes.c_ubyte * 256
+            pKeyBuffers = PBYTE256()
+            pKeyBuffers_old = PBYTE256()
+            GetKeyboardState = winUser.user32.GetKeyboardState
+            SetKeyboardState = winUser.user32.SetKeyboardState
+            GetKeyboardState( ctypes.byref(pKeyBuffers_old ))
+            SetKeyboardState( ctypes.byref(pKeyBuffers) )
+            time.sleep(0.01)
+            
         def goToPosition(selectionPresent, offset):
             # This function would be too slow for offsets > 1000
             mylog(f"goToPosition({selectionPresent}, {offset}):")
-            focus = api.getFocusObject()
-            injectKeystroke(focus.windowHandle, winUser.VK_LCONTROL)
-            injectKeystroke(focus.windowHandle, winUser.VK_CONTROL)
-            injectKeystroke(focus.windowHandle, winUser.VK_RCONTROL)
+            #focus = api.getFocusObject()
+            #injectKeystroke(focus.windowHandle, winUser.VK_LCONTROL)
+            #injectKeystroke(focus.windowHandle, winUser.VK_CONTROL)
+            #injectKeystroke(focus.windowHandle, winUser.VK_RCONTROL)
+            attachAndHack()
             time.sleep(0.1)
             inputs = []
-            for controlVk in [winUser.VK_LCONTROL, winUser.VK_RCONTROL, winUser.VK_CONTROL]: # * 1000:
-                input = winUser.Input(type=winUser.INPUT_KEYBOARD)
-                input.ii.ki.wVk = controlVk
-                input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
-                inputs.append(input)
+            if False:
+                for controlVk in [winUser.VK_LCONTROL, winUser.VK_RCONTROL, winUser.VK_CONTROL]: # * 1000:
+                    input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+                    input.ii.ki.wVk = controlVk
+                    input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
+                    inputs.append(input)
 
             if selectionPresent:
                 inputs.extend(makeVkInput(winUser.VK_LEFT) )
