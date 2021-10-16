@@ -336,6 +336,12 @@ class Beeper:
     def stop(self):
         self.player.stop()
 
+gestureCounter = 0
+originalExecuteGesture = None
+def preExecuteGesture(self, gesture, *args, **kwargs):
+    global gestureCounter
+    gestureCounter += 1
+    return originalExecuteGesture(self, gesture, *args, **kwargs)
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = _("WordNav")
@@ -345,6 +351,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self.createMenu()
         self.injectHooks()
         self.beeper = Beeper()
+        self.wordNavGestureCounter = 0
+        
+        
 
     def createMenu(self):
         gui.settingsDialogs.NVDASettingsDialog.categoryClasses.append(SettingsDialog)
@@ -366,6 +375,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         cursorManager.CursorManager.script_cursorMoveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWordEx(selfself, gesture, *args, **kwargs)
         cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"] = "cursorMoveByWordEx",
         cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"] = "cursorMoveByWordEx",
+        originalExecuteGesture = inputCore.InputManager.executeGesture
+        inputCore.InputManager.executeGesture = preExecuteGesture
 
 
     def  removeHooks(self):
@@ -378,6 +389,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         del cursorManager.CursorManager.script_cursorMoveByWordEx
         del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"]
         del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"]
+        inputCore.InputManager.executeGesture = originalExecuteGesture
 
     def isBlacklistedApp(self):
         focus = api.getFocusObject()
@@ -424,7 +436,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
-        
+        tones.beep(500, 50)
+        consecutiveGesture = gestureCounter == self.wordNavGestureCounter + 1
+        self.wordNavGestureCounter = gestureCounter
         useKeystrokes = True
         def preprocessText(lineText):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
@@ -456,7 +470,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             winUser.PostMessage(hWnd, WM_KEYUP, vkCode, 1 | (1<<30) | (1<<31))
             time.sleep(0.1)
         def attachAndHack():
-            tones.beep(500, 50)
             focus = api.getFocusObject()
             hwnd =  focus.windowHandle
             #processID=winUser.getWindowThreadProcessID(hwnd)[0]
@@ -513,18 +526,30 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             else:
                 unit = textInfos.UNIT_PARAGRAPH
             mylog(f"direction={direction} unit={unit}")
-            selectionInfo = focus.makeTextInfo(textInfos.POSITION_SELECTION)
-            selectionPresent = len(selectionInfo.text) > 0
-            offset = 0
-            caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
-            caretInfo.collapse(end=(direction > 0))
-            lineInfo = caretInfo.copy()
-            lineInfo.expand(unit)
-            offsetInfo = lineInfo.copy()
-            offsetInfo.setEndPoint(caretInfo, 'endToEnd')
-            caret = len(preprocessText(offsetInfo.text))
+            lineText = None
+            if not consecutiveGesture:
+                self.lastFocus = focus
+                selectionInfo = focus.makeTextInfo(textInfos.POSITION_SELECTION)
+                selectionPresent = len(selectionInfo.text) > 0
+                offset = 0
+                caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
+                caretInfo.collapse(end=(direction > 0))
+                lineInfo = caretInfo.copy()
+                lineInfo.expand(unit)
+                offsetInfo = lineInfo.copy()
+                offsetInfo.setEndPoint(caretInfo, 'endToEnd')
+                caret = len(preprocessText(offsetInfo.text))
+            else:
+                # consecutive gesture: try to reuse focus and text infos from previous call as caret might still be moving from previously issued arrow keystrokes
+                if self.lastFocus != focus:
+                    raise Exception("Focus changed between consecutive invokations!")
+                selectionPresent = False # no time to check!
+                lineInfo = self.lastLineInfo
+                lineText = self.lastLineText
+                caret = self.lastCaret
             for lineAttempt in range(100):
-                lineText = lineInfo.text.rstrip('\r\n')
+                if lineText is None:
+                    lineText = lineInfo.text.rstrip('\r\n')
                 lineText = preprocessText(lineText)
                 mylog(f"lineAttempt={lineAttempt}; paragraph:")
                 mylog(lineText)
@@ -548,36 +573,42 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         adjustment = boundaries[newWordIndex] - caret
                         if useKeystrokes:
                             offset += adjustment
-                        mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
-                        newInfo = caretInfo
-                        newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
+                        else:
+                            mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
+                            newInfo = caretInfo
+                            newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     else:
-                        newInfo = lineInfo
                         adjustment =  boundaries[newWordIndex]
                         if useKeystrokes:
                             if direction > 0:
                                 offset += adjustment
                             else:
                                 offset -= len(lineText) - adjustment
-                        newInfo.collapse(end=False)
-                        mylog(f"adjustment={adjustment}")
-                        result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
+                        else:
+                            newInfo = lineInfo
+                            newInfo.collapse(end=False)
+                            mylog(f"adjustment={adjustment}")
+                            result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     if newWordIndex + 1 < len(boundaries):
                         mylog("This is not the end of line word, so need to make a non-empty textInfo")
                         followingWordIndex = newWordIndex + wordCount
                         followingWordIndex = max(0, followingWordIndex)
                         followingWordIndex = min(followingWordIndex, len(boundaries) - 1)
+                        wordLen = boundaries[followingWordIndex] - boundaries[newWordIndex]
+                    else:
+                        wordLen = 0
+                    if not useKeystrokes:
                         newInfo.move(
                             textInfos.UNIT_CHARACTER,
-                            boundaries[followingWordIndex] - boundaries[newWordIndex],
+                            wordLen,
                             endPoint='end',
                         )
-                    speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
-                    if useKeystrokes:
-                        goToPosition(selectionPresent, offset)
-                    else:
+                        speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                         newInfo.collapse()
                         newInfo.updateCaret()
+                    else:
+                        goToPosition(selectionPresent, offset)
+                        ui.message(lineText[caret:caret+wordLen])
                     return
                 else:
                     # New word found in the next para!
@@ -609,6 +640,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         self.beeper.fancyBeep('HF', 100, left=25, right=25)
                         return
                     lineInfo.expand(unit)
+                    lineText = None # will be recomputed
                     # now try to find next word again on next/previous line
                     if direction > 0:
                         caret = -1
