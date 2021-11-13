@@ -381,10 +381,18 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionIn
             selectionInfo.updateSelection()
           # Step 2. Clear selection to the right thus setting the caret in the right place.
             if len(selectionInfo.text) > 0:
+                # First wait until selection appears
+                t0 = time.time()
+                while True:
+                    if time.time() - t0 > 0.050:
+                        raise Exception("Timeout 50ms: Couldn't select pretext!")
+                    if selectionInfo._startObj.IAccessibleTextObject.nSelections  > 0:
+                        break
+                    yield 1
                 kbdRight.send()
             else:
                 kbdLeft.send()
-            yield 50
+            yield 20
           # Step 4. Now restore announcing selection messages and return
             suppressSelectionMessages = False
             return
