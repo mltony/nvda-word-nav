@@ -203,7 +203,7 @@ class SettingsDialog(SettingsPanel):
         label = _("Left Control+Windows behavior:")
         self.leftControlWindowsAssignmentCombobox = sHelper.addLabeledControl(label, wx.Choice, choices=self.controlWindowsAssignmentText)
         self.leftControlWindowsAssignmentCombobox.Selection = getConfig("leftControlWindowsAssignmentIndex")
-        
+
       # Right Control+Windows assignment Combo box
         # Translators: Label for control+windows assignment combo box
         label = _("Right Control+Windows behavior:")
@@ -337,6 +337,62 @@ class Beeper:
         self.player.stop()
 
 
+def executeAsynchronously(gen):
+    """
+    This function executes a generator-function in such a manner, that allows updates from the operating system to be processed during execution.
+    For an example of such generator function, please see GlobalPlugin.script_editJupyter.
+    Specifically, every time the generator function yilds a positive number,, the rest of the generator function will be executed
+    from within wx.CallLater() call.
+    If generator function yields a value of 0, then the rest of the generator function
+    will be executed from within wx.CallAfter() call.
+    This allows clear and simple expression of the logic inside the generator function, while still allowing NVDA to process update events from the operating system.
+    Essentially the generator function will be paused every time it calls yield, then the updates will be processed by NVDA and then the remainder of generator function will continue executing.
+    """
+    if not isinstance(gen, types.GeneratorType):
+        raise Exception("Generator function required")
+    try:
+        value = gen.__next__()
+    except StopIteration:
+        return
+    l = lambda gen=gen: executeAsynchronously(gen)
+    if value == 0:
+        wx.CallAfter(l)
+    else:
+        wx.CallLater(value, l)
+releaserCounter = 0
+cachedTextInfo = None
+controlModifiers = [
+    winUser.VK_LCONTROL, winUser.VK_RCONTROL,
+]
+kbdRight = keyboardHandler.KeyboardInputGesture.fromName("RightArrow")
+def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter):
+    global releaserCounter, cachedTextInfo, suppressSelectionMessages
+    while True:
+        if releaserCounter != localReleaserCounter:
+            return
+        status = [
+            winUser.getKeyState(k) & 32768
+            for k in controlModifiers
+        ]
+        if not any(status):
+            cachedTextInfo = None
+            # This just clears selection, doesn't actually move the cursor anywhere
+            kbdRight.send()
+            yield 300
+            suppressSelectionMessages = False
+            return
+        yield 1
+
+    
+
+originalSpeakSelectionChange = None
+suppressSelectionMessages = False
+def preSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs):
+    global suppressSelectionMessages
+    if suppressSelectionMessages:
+        return False
+    return originalSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs)
+
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = _("WordNav")
 
@@ -354,6 +410,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         gui.settingsDialogs.NVDASettingsDialog.categoryClasses.remove(SettingsDialog)
 
     def injectHooks(self):
+        global originalSpeakSelectionChange
         self.originalMoveByWord = editableText.EditableText.script_caret_moveByWord
         editableText.EditableText.script_caret_moveByWord = lambda selfself, gesture, *args, **kwargs: self.script_caretMoveByWord(selfself, gesture, *args, **kwargs)
         editableText.EditableText.script_caret_moveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_caretMoveByWordEx(selfself, gesture, *args, **kwargs)
@@ -366,6 +423,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         cursorManager.CursorManager.script_cursorMoveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWordEx(selfself, gesture, *args, **kwargs)
         cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"] = "cursorMoveByWordEx",
         cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"] = "cursorMoveByWordEx",
+        originalSpeakSelectionChange = speech.speakSelectionChange
+        speech.speakSelectionChange = preSpeakSelectionChange
+
 
 
     def  removeHooks(self):
@@ -378,6 +438,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         del cursorManager.CursorManager.script_cursorMoveByWordEx
         del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"]
         del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"]
+        speech.speakSelectionChange = originalSpeakSelectionChange
 
     def isBlacklistedApp(self):
         focus = api.getFocusObject()
@@ -396,7 +457,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     # Right control
                     return "right"
         raise Exception("Control is not pressed - please don't reassign WordNav keystrokes!")
-        
+
     @functools.lru_cache(maxsize=100)
     def computeBoundariesCached(self, text, wordRe):
         boundaries = [m.start() for m in wordRe.finditer(text)]
@@ -423,6 +484,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
+        chromeHack = False
+        global cachedTextInfo
         def preprocessText(lineText):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
         try:
@@ -432,8 +495,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 direction = 1
             else:
                 return onError(None)
-            
+
             focus = api.getFocusObject()
+            if focus.appModule.appName == 'chrome':
+                chromeHack = True
             if focus.appModule.appName == "devenv":
                 # In visual Studio paragraph textInfo returns the whole document.
                 # Therefore use UNIT_LINE instead
@@ -441,8 +506,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             else:
                 unit = textInfos.UNIT_PARAGRAPH
             mylog(f"direction={direction} unit={unit}")
-            caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
-            caretInfo.collapse(end=(direction > 0))
+            if chromeHack and cachedTextInfo is not None:
+                caretInfo = cachedTextInfo.copy()
+            else:
+                caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
+                caretInfo.collapse(end=(direction > 0))
+            
             lineInfo = caretInfo.copy()
             lineInfo.expand(unit)
             offsetInfo = lineInfo.copy()
@@ -492,7 +561,21 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         )
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                     newInfo.collapse()
-                    newInfo.updateCaret()
+                    if not chromeHack:
+                        newInfo.updateCaret()
+                    else:
+                        # Due to a bug in chromium we need to perform a workaround:
+                        # https://bugs.chromium.org/p/chromium/issues/detail?id=1260726#c2
+                        global suppressSelectionMessages
+                        suppressSelectionMessages = True
+                        offset = newInfo._start._startOffset
+                        obj = newInfo._startObj
+                        obj.IAccessibleTextObject.setSelection(0, 0, offset)
+                        cachedTextInfo = newInfo
+                        global releaserCounter
+                        releaserCounter += 1
+                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter))
+
                     return
                 else:
                     # New word found in the next para!
@@ -605,7 +688,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         else:
                             adjustment =  boundaries[newWordIndex] - len(lineInfo.text)
                             newInfo.collapse(end=True)
-                            
+
                         result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
                     if newWordIndex + 1 < len(boundaries):
                         followingWordIndex = newWordIndex + wordCount
