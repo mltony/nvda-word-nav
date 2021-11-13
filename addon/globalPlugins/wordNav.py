@@ -489,9 +489,26 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
         chromeHack = False
+        vsCodeHack = False
         global cachedTextInfo
         def preprocessText(lineText):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
+        def moveByCharacter(textInfo, adjustment, endPoint=None):
+            if not vsCodeHack:
+                return textInfo.move(textInfos.UNIT_CHARACTER, adjustment, endPoint)
+            else:
+                # We don't do any sanity checking here - assuming that it's possible to perform such move
+                # NVDA splits move by N characters into N separate moves by single character.
+                # This is too slow in VS Code, so optimizing
+                offset = textInfo._start._startOffset
+                offset += adjustment
+                if endPoint is None:
+                    textInfo._start._startOffset = offset
+                    textInfo._end._startOffset = offset
+                textInfo._start._endOffset = offset
+                textInfo._end._endOffset = offset
+                return 0
+                
         try:
             if 'leftArrow' == gesture.mainKeyName:
                 direction = -1
@@ -503,6 +520,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             focus = api.getFocusObject()
             if focus.appModule.appName == 'chrome':
                 chromeHack = True
+            if 'vs code' in focus.appModule.appName:
+                vsCodeHack = True
             if focus.appModule.appName == "devenv":
                 # In visual Studio paragraph textInfo returns the whole document.
                 # Therefore use UNIT_LINE instead
@@ -546,20 +565,20 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         adjustment = boundaries[newWordIndex] - caret
                         mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
                         newInfo = caretInfo
-                        newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
+                        moveByCharacter(newInfo, adjustment)
                     else:
                         newInfo = lineInfo
                         adjustment =  boundaries[newWordIndex]
                         newInfo.collapse(end=False)
                         mylog(f"adjustment={adjustment}")
-                        result = newInfo.move(textInfos.UNIT_CHARACTER, adjustment)
+                        moveByCharacter(newInfo, adjustment)
                     if newWordIndex + 1 < len(boundaries):
                         mylog("This is not the end of line word, so need to make a non-empty textInfo")
                         followingWordIndex = newWordIndex + wordCount
                         followingWordIndex = max(0, followingWordIndex)
                         followingWordIndex = min(followingWordIndex, len(boundaries) - 1)
-                        newInfo.move(
-                            textInfos.UNIT_CHARACTER,
+                        moveByCharacter(
+                            newInfo,
                             boundaries[followingWordIndex] - boundaries[newWordIndex],
                             endPoint='end',
                         )
