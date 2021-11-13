@@ -81,6 +81,7 @@ def myAssert(condition):
 
 module = "wordNav"
 def initConfiguration():
+    defaultBulkyRegexp = r'$|(^|(?<=[\s\(\)]))[^\s\(\)]|\b(:\d+)+\b'
     confspec = {
         "overrideMoveByWord" : "boolean( default=True)",
         "enableInBrowseMode" : "boolean( default=True)",
@@ -89,6 +90,7 @@ def initConfiguration():
         "leftControlWindowsAssignmentIndex": "integer( default=2, min=0, max=4)",
         "rightControlWindowsAssignmentIndex": "integer( default=4, min=0, max=4)",
         "bulkyWordPunctuation" : f"string( default='():')",
+        "bulkyWordRegex" : f"string( default='{defaultBulkyRegexp}')",
         "wordCount": "integer( default=5, min=1, max=1000)",
         "applicationsBlacklist" : f"string( default='')",
     }
@@ -133,12 +135,8 @@ def escapeRegex(s):
             return f"\\{c}"
         return c
     return "".join(map(escapeCharacter, s))
-def generateWordRebulky(punctuation=None):
-    if punctuation is None:
-        punctuation = getConfig("bulkyWordPunctuation")
-    punctuation = escapeRegex(punctuation)
-    space = f"\\s{punctuation}"
-    wordReBulkyString = f"$|(^|(?<=[{space}]))[^{space}]"
+def generateWordRebulky():
+    wordReBulkyString = getConfig("bulkyWordRegex")
     wordReBulky = re.compile(wordReBulkyString)
     return wordReBulky
 
@@ -166,11 +164,11 @@ class SettingsDialog(SettingsPanel):
     # Translators: Title for the settings dialog
     title = _("WordNav")
     controlAssignmentText = [
-        _("Default NVDA word navigation"),
+        _("Default NVDA word navigation (WordNav disabled)"),
         _("Notepad++ style navigation"),
-        _("Bulky word navigation"),
-        _("Fine word navigation"),
-        _("MultiWord navigation"),
+        _("Custom regular expression word navigation"),
+        _("Fine word navigation - good for programming"),
+        _("MultiWord navigation - reads multiple words at once"),
     ]
     controlWindowsAssignmentText = [
         _("Unassigned"),
@@ -212,8 +210,8 @@ class SettingsDialog(SettingsPanel):
 
       # bulkyWordPunctuation
         # Translators: Label for bulkyWordPunctuation edit box
-        self.bulkyWordPunctuationEdit = sHelper.addLabeledControl(_("Bulky word separators:"), wx.TextCtrl)
-        self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordPunctuation")
+        self.bulkyWordPunctuationEdit = sHelper.addLabeledControl(_("Custom word regular expression:"), wx.TextCtrl)
+        self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordRegex")
       # MultiWord word count
         # Translators: Label for multiWord wordCount edit box
         self.wordCountEdit = sHelper.addLabeledControl(_("Word count for multiWord navigation:"), wx.TextCtrl)
@@ -238,7 +236,7 @@ class SettingsDialog(SettingsPanel):
         setConfig("rightControlAssignmentIndex", self.rightControlAssignmentCombobox.Selection)
         setConfig("leftControlWindowsAssignmentIndex", self.leftControlWindowsAssignmentCombobox.Selection)
         setConfig("rightControlWindowsAssignmentIndex", self.rightControlWindowsAssignmentCombobox.Selection)
-        setConfig("bulkyWordPunctuation", self.bulkyWordPunctuationEdit.Value)
+        setConfig("bulkyWordRegex", self.bulkyWordPunctuationEdit.Value)
         setConfig("wordCount", int(self.wordCountEdit.Value))
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
 
