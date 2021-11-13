@@ -364,7 +364,7 @@ controlModifiers = [
 ]
 kbdRight = keyboardHandler.KeyboardInputGesture.fromName("RightArrow")
 kbdLeft = keyboardHandler.KeyboardInputGesture.fromName("LeftArrow")
-def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, offset):
+def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionInfo):
     global releaserCounter, cachedTextInfo, suppressSelectionMessages
     while True:
         if releaserCounter != localReleaserCounter:
@@ -375,12 +375,17 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, offset):
         ]
         if not any(status):
             cachedTextInfo = None
-            # This just clears selection, doesn't actually move the cursor anywhere
-            if offset > 0:
+          #Step 0. Don't announce Selected/unselected for a while.
+            suppressSelectionMessages= True
+          # Step 1: Select from start to new cursor
+            selectionInfo.updateSelection()
+          # Step 2. Clear selection to the right thus setting the caret in the right place.
+            if len(selectionInfo.text) > 0:
                 kbdRight.send()
             else:
                 kbdLeft.send()
-            yield 300
+            yield 50
+          # Step 4. Now restore announcing selection messages and return
             suppressSelectionMessages = False
             return
         yield 1
@@ -486,9 +491,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
+        global cachedTextInfo
         chromeHack = False
         vsCodeHack = False
-        global cachedTextInfo
         def preprocessText(lineText):
             return lineText.replace("\r\n", "\n").replace("\r", "\n") # Fix for Visual Studio, that has a different definition of paragraph, that often contains newlines written in \r\n format
         def moveByCharacter(textInfo, adjustment, endPoint=None):
@@ -587,15 +592,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     else:
                         # Due to a bug in chromium we need to perform a workaround:
                         # https://bugs.chromium.org/p/chromium/issues/detail?id=1260726#c2
-                        global suppressSelectionMessages
-                        suppressSelectionMessages = True
-                        offset = newInfo._start._startOffset
-                        obj = newInfo._startObj
-                        obj.IAccessibleTextObject.setSelection(0, 0, offset)
-                        cachedTextInfo = newInfo
                         global releaserCounter
+                        cachedTextInfo = newInfo
+                        selectionInfo = newInfo.copy()
+                        allInfo = focus.makeTextInfo(textInfos.POSITION_ALL)
+                        selectionInfo.setEndPoint(allInfo, which='startToStart')
                         releaserCounter += 1
-                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter, offset))
+                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter, selectionInfo))
 
                     return
                 else:
