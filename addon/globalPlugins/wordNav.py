@@ -365,7 +365,8 @@ controlModifiers = [
     winUser.VK_LCONTROL, winUser.VK_RCONTROL,
 ]
 kbdRight = keyboardHandler.KeyboardInputGesture.fromName("RightArrow")
-def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter):
+kbdLeft = keyboardHandler.KeyboardInputGesture.fromName("LeftArrow")
+def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, offset):
     global releaserCounter, cachedTextInfo, suppressSelectionMessages
     while True:
         if releaserCounter != localReleaserCounter:
@@ -377,7 +378,10 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter):
         if not any(status):
             cachedTextInfo = None
             # This just clears selection, doesn't actually move the cursor anywhere
-            kbdRight.send()
+            if offset > 0:
+                kbdRight.send()
+            else:
+                kbdLeft.send()
             yield 300
             suppressSelectionMessages = False
             return
@@ -574,7 +578,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         cachedTextInfo = newInfo
                         global releaserCounter
                         releaserCounter += 1
-                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter))
+                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter, offset))
 
                     return
                 else:
