@@ -531,6 +531,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             focus = api.getFocusObject()
             if focus.appModule.appName == 'chrome':
                 chromeHack = True
+                selectionInfo = focus.makeTextInfo(textInfos.POSITION_SELECTION)
+                if len(selectionInfo.text) != 0:
+                    # We can't move by word when something is selected due to chrome hack.
+                    # Alerting user to avoid weird behavior
+                    self.beeper.fancyBeep('HF', 100, left=25, right=25)
+                    ui.message(_("Selection is present. Cannot move by word in Chrome when selection is present. Please unselect first."))
+                    return
             if 'vs code' in focus.appModule.appName:
                 vsCodeHack = True
             if focus.appModule.appName == "devenv":
