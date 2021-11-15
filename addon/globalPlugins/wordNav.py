@@ -357,6 +357,23 @@ def executeAsynchronously(gen):
         wx.CallAfter(l)
     else:
         wx.CallLater(value, l)
+
+def makeVkInput(vkCodes):
+    result = []
+    if not isinstance(vkCodes, list):
+        vkCodes = [vkCodes]
+    for vk in vkCodes:
+        input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+        input.ii.ki.wVk = vk
+        result.append(input)
+    for vk in reversed(vkCodes):
+        input = winUser.Input(type=winUser.INPUT_KEYBOARD)
+        input.ii.ki.wVk = vk
+        input.ii.ki.dwFlags = winUser.KEYEVENTF_KEYUP
+        result.append(input)
+    return result
+
+
 releaserCounter = 0
 cachedTextInfo = None
 controlModifiers = [
@@ -389,16 +406,23 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionIn
                     if selectionInfo._startObj.IAccessibleTextObject.nSelections  > 0:
                         break
                     yield 1
-                kbdRight.send()
+
+                # kbdRight.send()
+                # The previous line causes a deadlock sometimes - also somehow it triggers NVDA internal response to this keystroke, so we need to fool NVDA.
+                with keyboardHandler.ignoreInjection():
+                    winUser.SendInput(makeVkInput([winUser.VK_RIGHT]))
             else:
-                kbdLeft.send()
+                #kbdLeft.send()
+                with keyboardHandler.ignoreInjection():
+                    winUser.SendInput(makeVkInput([winUser.VK_LEFT]))
+
             yield 20
           # Step 4. Now restore announcing selection messages and return
             suppressSelectionMessages = False
             return
         yield 1
 
-    
+
 
 originalSpeakSelectionChange = None
 suppressSelectionMessages = False
@@ -519,7 +543,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 textInfo._start._endOffset = offset
                 textInfo._end._endOffset = offset
                 return 0
-                
+
         try:
             if 'leftArrow' == gesture.mainKeyName:
                 direction = -1
@@ -552,7 +576,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             else:
                 caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
                 caretInfo.collapse(end=(direction > 0))
-            
+
             lineInfo = caretInfo.copy()
             lineInfo.expand(unit)
             offsetInfo = lineInfo.copy()
