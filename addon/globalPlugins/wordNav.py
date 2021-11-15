@@ -376,12 +376,16 @@ def makeVkInput(vkCodes):
 
 releaserCounter = 0
 cachedTextInfo = None
+cachedOffset = 0
 controlModifiers = [
     winUser.VK_LCONTROL, winUser.VK_RCONTROL,
+    winUser.VK_LSHIFT, winUser.VK_RSHIFT,
+    winUser.VK_LMENU, winUser.VK_RMENU,
+    winUser.VK_LWIN, winUser.VK_RWIN,
 ]
 kbdRight = keyboardHandler.KeyboardInputGesture.fromName("RightArrow")
 kbdLeft = keyboardHandler.KeyboardInputGesture.fromName("LeftArrow")
-def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionInfo):
+def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionInfo, offset):
     global releaserCounter, cachedTextInfo, suppressSelectionMessages
     while True:
         if releaserCounter != localReleaserCounter:
@@ -392,34 +396,43 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionIn
         ]
         if not any(status):
             cachedTextInfo = None
-          #Step 0. Don't announce Selected/unselected for a while.
-            suppressSelectionMessages= True
-          # Step 1: Select from start to new cursor
-            selectionInfo.updateSelection()
-          # Step 2. Clear selection to the right thus setting the caret in the right place.
-            if len(selectionInfo.text) > 0:
-                # First wait until selection appears
-                t0 = time.time()
-                while True:
-                    if time.time() - t0 > 0.050:
-                        raise Exception("Timeout 50ms: Couldn't select pretext!")
-                    if selectionInfo._startObj.IAccessibleTextObject.nSelections  > 0:
-                        break
-                    yield 1
-
-                # kbdRight.send()
-                # The previous line causes a deadlock sometimes - also somehow it triggers NVDA internal response to this keystroke, so we need to fool NVDA.
-                with keyboardHandler.ignoreInjection():
-                    winUser.SendInput(makeVkInput([winUser.VK_RIGHT]))
-            else:
-                #kbdLeft.send()
-                with keyboardHandler.ignoreInjection():
-                    winUser.SendInput(makeVkInput([winUser.VK_LEFT]))
-
-            yield 20
-          # Step 4. Now restore announcing selection messages and return
-            suppressSelectionMessages = False
+            cachedOffset = 0
+            vk = winUser.VK_RIGHT if offset >= 0 else winUser.VK_LEFT
+            input = makeVkInput([vk])
+            input *= abs(offset)
+            with keyboardHandler.ignoreInjection():
+                winUser.SendInput(input)
             return
+            if False:
+                # This old method with selecting pretext doesn't work as well
+              #Step 0. Don't announce Selected/unselected for a while.
+                suppressSelectionMessages= True
+              # Step 1: Select from start to new cursor
+                selectionInfo.updateSelection()
+              # Step 2. Clear selection to the right thus setting the caret in the right place.
+                if len(selectionInfo.text) > 0:
+                    # First wait until selection appears
+                    t0 = time.time()
+                    while True:
+                        if time.time() - t0 > 0.050:
+                            raise Exception("Timeout 50ms: Couldn't select pretext!")
+                        if selectionInfo._startObj.IAccessibleTextObject.nSelections  > 0:
+                            break
+                        yield 1
+
+                    # kbdRight.send()
+                    # The previous line causes a deadlock sometimes - also somehow it triggers NVDA internal response to this keystroke, so we need to fool NVDA.
+                    with keyboardHandler.ignoreInjection():
+                        winUser.SendInput(makeVkInput([winUser.VK_RIGHT]))
+                else:
+                    #kbdLeft.send()
+                    with keyboardHandler.ignoreInjection():
+                        winUser.SendInput(makeVkInput([winUser.VK_LEFT]))
+
+                yield 20
+              # Step 4. Now restore announcing selection messages and return
+                suppressSelectionMessages = False
+                return
         yield 1
 
 
@@ -523,7 +536,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
-        global cachedTextInfo
+        global cachedTextInfo, cachedOffset
         chromeHack = False
         vsCodeHack = False
         def preprocessText(lineText):
@@ -573,9 +586,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             mylog(f"direction={direction} unit={unit}")
             if chromeHack and cachedTextInfo is not None:
                 caretInfo = cachedTextInfo.copy()
+                offset = cachedOffset
             else:
                 caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
                 caretInfo.collapse(end=(direction > 0))
+                offset = 0
 
             lineInfo = caretInfo.copy()
             lineInfo.expand(unit)
@@ -605,12 +620,17 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             newWordIndex = max(0, newWordIndex)
                             newWordIndex = min(newWordIndex, len(boundaries) - 1)
                         adjustment = boundaries[newWordIndex] - caret
+                        offset += adjustment
                         mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
                         newInfo = caretInfo
                         moveByCharacter(newInfo, adjustment)
                     else:
                         newInfo = lineInfo
                         adjustment =  boundaries[newWordIndex]
+                        if direction > 0:
+                            offset += adjustment
+                        else:
+                            offset -= len(lineText) - adjustment
                         newInfo.collapse(end=False)
                         mylog(f"adjustment={adjustment}")
                         moveByCharacter(newInfo, adjustment)
@@ -633,17 +653,27 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         # https://bugs.chromium.org/p/chromium/issues/detail?id=1260726#c2
                         global releaserCounter
                         cachedTextInfo = newInfo
+                        cachedOffset = offset
                         selectionInfo = newInfo.copy()
                         allInfo = focus.makeTextInfo(textInfos.POSITION_ALL)
                         selectionInfo.setEndPoint(allInfo, which='startToStart')
                         releaserCounter += 1
-                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter, selectionInfo))
+                        executeAsynchronously(asyncPressRightArrowAfterControlIsReleased(releaserCounter, selectionInfo, offset))
 
                     return
                 else:
                     # New word found in the next para!
                     mylog("Next para!")
                     lineInfo.collapse()
+                    if lineAttempt == 0:
+                        if direction > 0:
+                            offset += len(lineText) - caret
+                        else:
+                            offset -= caret
+                    else:
+                        offset += direction * len(lineText)
+                    # Also don't forget about newline character itself:
+                    offset += direction
                     result = lineInfo.move(unit, direction)
                     if result != 0:
                         result2 = 1
