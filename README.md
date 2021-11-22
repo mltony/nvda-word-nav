@@ -5,12 +5,13 @@ Most text editors support Control+LeftArrow/RightArrow commands for word navigat
 
 Please note that a prototype of WordNav was formerly a part of [Tony's enhancements](https://github.com/mltony/nvda-tonys-enhancements/) add-on. Please either uninstall it or upgrade to [Tony's enhancements latest stable version](https://github.com/mltony/nvda-tonys-enhancements/releases/latest/download/tonysEnhancements.nvda-addon) to avoid conflicts.
 
-Currently WordNav supports four definitions of the word, assigned to different gestures:
+Currently WordNav supports five definitions of the word, assigned to different gestures:
 
 - `Left Control+Arrows`: Notepad++ definition, that treats alphanumeric characters as words, and adjacent punctuation marks are also treated as words. This should be the most convenient word definition for the majority of users.
 - `RightControl+Arrows`: Fine word definition splits `camelCaseIdentifiers` and `underscore_separated_identifiers` into separate parts, thus allowing the cursor to go into long identifiers.
 - `LeftControl+Windows+Arros`: Bulky word definition treats almost all punctuation symbols adjacent to text as part of a single word, therefore it would treat paths like `C:\directory\subdirectory\file.txt` as a single word.
 - `RightControl+Windows+Arros`: Multiword definition, that groups several words together. The amount of words is configurable.
+- Unassigned: custom regular expression word definition: allows user to define a custom regular expression for word boundaries.
 
 Gestures can be customized in WordNav settings panel.
 
@@ -18,8 +19,6 @@ Gestures can be customized in WordNav settings panel.
 
 - At this time WordNav doesn't modify `Control+Shift+LeftArrow/RightArrow` gestures to select words, since implementation of such commands are significantly more complicated.
 - If you would like to use virtual desktops feature of Windows 10, please remember to disable Control+Windows+Arrows keyboard shortcuts either in WordNav Settings panel, or in NVDA Input gestures dialog.
-- WordNav doesn't work reliably in VSCode, since due to its internal optimizations, VSCode presents only a few lines of file contents at a time, that change dynamically, and this occasionally interferes with WordNav algorithm.
-
 
 ##  Downloads
 
