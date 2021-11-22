@@ -91,6 +91,7 @@ def initConfiguration():
         "rightControlWindowsAssignmentIndex": "integer( default=4, min=0, max=5)",
         "bulkyWordPunctuation" : f"string( default='():')",
         "bulkyWordRegex" : f"string( default='{defaultBulkyRegexp}')",
+        "paragraphChimeVolume" : "integer( default=5, min=0, max=100)",
         "wordCount": "integer( default=5, min=1, max=1000)",
         "applicationsBlacklist" : f"string( default='')",
     }
@@ -232,6 +233,11 @@ class SettingsDialog(SettingsPanel):
         # Translators: Label for multiWord wordCount edit box
         self.wordCountEdit = sHelper.addLabeledControl(_("Word count for multiWord navigation:"), wx.TextCtrl)
         self.wordCountEdit.Value = str(getConfig("wordCount"))
+      # paragraphChimeVolumeSlider
+        # Translators: Paragraph crossing chime volume
+        label = _("Volume of chime when crossing paragraph border")
+        self.paragraphChimeVolumeSlider = sHelper.addLabeledControl(label, wx.Slider, minValue=0,maxValue=100)
+        self.paragraphChimeVolumeSlider.SetValue(getConfig("paragraphChimeVolume"))
 
       # applicationsBlacklist edit
         # Translators: Label for blacklisted applications edit box
@@ -255,6 +261,7 @@ class SettingsDialog(SettingsPanel):
         setConfig("bulkyWordPunctuation", self.bulkyWordPunctuationEdit.Value)
         setConfig("bulkyWordRegex", self.customWordRegexEdit.Value)
         setConfig("wordCount", int(self.wordCountEdit.Value))
+        setConfig("paragraphChimeVolume", self.paragraphChimeVolumeSlider.Value)
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
 
 
@@ -513,6 +520,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"]
         speech.speakSelectionChange = originalSpeakSelectionChange
 
+    def chimeCrossParagraphBorder(self):
+        volume = getConfig("paragraphChimeVolume")
+        self.beeper.fancyBeep("AC#EG#", 30, volume, volume)
+
     def isBlacklistedApp(self):
         focus = api.getFocusObject()
         appName = focus.appModule.appName
@@ -616,6 +627,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             offsetInfo = lineInfo.copy()
             offsetInfo.setEndPoint(caretInfo, 'endToEnd')
             caret = len(preprocessText(offsetInfo.text))
+            crossedParagraph = False
             for lineAttempt in range(100):
                 lineText = lineInfo.text.rstrip('\r\n')
                 lineText = preprocessText(lineText)
@@ -642,7 +654,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
                         offset += adjustment
                         mylog(f"CC_sameLine: offset += adjustment; now offset={offset}")
-                        
+
                         newInfo = caretInfo
                         moveByCharacter(newInfo, adjustment)
                     else:
@@ -656,7 +668,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             offset -= len(lineText) - adjustment
                             mylog(f"CC_prevLine: offset -= len() + adjustment; now offset={offset}")
                         newInfo.collapse(end=False)
-                        
+
                         moveByCharacter(newInfo, adjustment)
                     if newWordIndex + 1 < len(boundaries):
                         mylog("This is not the end of line word, so need to make a non-empty textInfo")
@@ -670,6 +682,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         )
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                     newInfo.collapse()
+                    if crossedParagraph:
+                        self.chimeCrossParagraphBorder()
                     if not chromeHack:
                         newInfo.updateCaret()
                     else:
@@ -689,6 +703,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 else:
                     # New word found in the next para!
                     mylog("Next para!")
+                    crossedParagraph = True
                     lineInfo.collapse()
                     if lineAttempt == 0:
                         if direction > 0:
@@ -769,6 +784,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             offsetInfo = lineInfo.copy()
             offsetInfo.setEndPoint(caretInfo, 'endToEnd')
             caret = len(offsetInfo.text)
+            crossedParagraph = False
             for lineAttempt in range(100):
                 lineText = lineInfo.text.rstrip('\r\n')
                 mylog("current paragraph:")
@@ -822,12 +838,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             endPoint='end',
                         )
                     speech.speakTextInfo(newInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
+                    if crossedParagraph:
+                        self.chimeCrossParagraphBorder()
                     newInfo.collapse()
                     newInfo.updateCaret()
                     return
                 else:
                     # Next word will be found in the following paragraph
                     mylog("next para!")
+                    crossedParagraph = True
                     lineInfo.collapse()
                     result = lineInfo.move(textInfos.UNIT_PARAGRAPH, direction)
                     if result == 0:
