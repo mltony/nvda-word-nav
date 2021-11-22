@@ -85,10 +85,10 @@ def initConfiguration():
     confspec = {
         "overrideMoveByWord" : "boolean( default=True)",
         "enableInBrowseMode" : "boolean( default=True)",
-        "leftControlAssignmentIndex": "integer( default=3, min=0, max=4)",
-        "rightControlAssignmentIndex": "integer( default=1, min=0, max=4)",
-        "leftControlWindowsAssignmentIndex": "integer( default=2, min=0, max=4)",
-        "rightControlWindowsAssignmentIndex": "integer( default=4, min=0, max=4)",
+        "leftControlAssignmentIndex": "integer( default=3, min=0, max=5)",
+        "rightControlAssignmentIndex": "integer( default=1, min=0, max=5)",
+        "leftControlWindowsAssignmentIndex": "integer( default=2, min=0, max=5)",
+        "rightControlWindowsAssignmentIndex": "integer( default=4, min=0, max=5)",
         "bulkyWordPunctuation" : f"string( default='():')",
         "bulkyWordRegex" : f"string( default='{defaultBulkyRegexp}')",
         "wordCount": "integer( default=5, min=1, max=1000)",
@@ -135,7 +135,16 @@ def escapeRegex(s):
             return f"\\{c}"
         return c
     return "".join(map(escapeCharacter, s))
-def generateWordRebulky():
+def generateWordReBulky(punctuation=None):
+    if punctuation is None:
+        punctuation = getConfig("bulkyWordPunctuation")
+    punctuation = escapeRegex(punctuation)
+    space = f"\\s{punctuation}"
+    wordReBulkyString = f"$|(^|(?<=[{space}]))[^{space}]"
+    wordReBulky = re.compile(wordReBulkyString)
+    return wordReBulky
+
+def generateWordReCustom():
     wordReBulkyString = getConfig("bulkyWordRegex")
     wordReBulky = re.compile(wordReBulkyString)
     return wordReBulky
@@ -152,11 +161,13 @@ def getRegexByFunction(index):
     if index == 1:
         return wordRe,1
     elif index == 2:
-        return generateWordRebulky(),1
+        return generateWordReBulky(),1
     elif index == 3:
         return wordReFine,1
     elif index == 4:
-        return generateWordRebulky(), getConfig("wordCount")
+        return generateWordReBulky(), getConfig("wordCount")
+    elif index == 5:
+        return generateWordReCustom(), 1
     else:
         return None, None
 
@@ -166,9 +177,10 @@ class SettingsDialog(SettingsPanel):
     controlAssignmentText = [
         _("Default NVDA word navigation (WordNav disabled)"),
         _("Notepad++ style navigation"),
-        _("Custom regular expression word navigation"),
+        _("Bulky word navigation"),
         _("Fine word navigation - good for programming"),
         _("MultiWord navigation - reads multiple words at once"),
+        _("Custom regular expression word navigation"),
     ]
     controlWindowsAssignmentText = [
         _("Unassigned"),
@@ -207,11 +219,15 @@ class SettingsDialog(SettingsPanel):
         label = _("Right Control+Windows behavior:")
         self.rightControlWindowsAssignmentCombobox = sHelper.addLabeledControl(label, wx.Choice, choices=self.controlWindowsAssignmentText)
         self.rightControlWindowsAssignmentCombobox.Selection = getConfig("rightControlWindowsAssignmentIndex")
+      # bulkyWordPunctuation
+        # Translators: Label for bulkyWordPunctuation edit box
+        self.bulkyWordPunctuationEdit = sHelper.addLabeledControl(_("Bulky word separators:"), wx.TextCtrl)
+        self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordPunctuation")
 
       # bulkyWordPunctuation
         # Translators: Label for bulkyWordPunctuation edit box
-        self.bulkyWordPunctuationEdit = sHelper.addLabeledControl(_("Custom word regular expression:"), wx.TextCtrl)
-        self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordRegex")
+        self.customWordRegexEdit = sHelper.addLabeledControl(_("Custom word regular expression:"), wx.TextCtrl)
+        self.customWordRegexEdit.Value = getConfig("bulkyWordRegex")
       # MultiWord word count
         # Translators: Label for multiWord wordCount edit box
         self.wordCountEdit = sHelper.addLabeledControl(_("Word count for multiWord navigation:"), wx.TextCtrl)
@@ -236,7 +252,8 @@ class SettingsDialog(SettingsPanel):
         setConfig("rightControlAssignmentIndex", self.rightControlAssignmentCombobox.Selection)
         setConfig("leftControlWindowsAssignmentIndex", self.leftControlWindowsAssignmentCombobox.Selection)
         setConfig("rightControlWindowsAssignmentIndex", self.rightControlWindowsAssignmentCombobox.Selection)
-        setConfig("bulkyWordRegex", self.bulkyWordPunctuationEdit.Value)
+        setConfig("bulkyWordPunctuation", self.bulkyWordPunctuationEdit.Value)
+        setConfig("bulkyWordRegex", self.customWordRegexEdit.Value)
         setConfig("wordCount", int(self.wordCountEdit.Value))
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
 
@@ -377,6 +394,7 @@ def makeVkInput(vkCodes):
 releaserCounter = 0
 cachedTextInfo = None
 cachedOffset = 0
+cachedCollapseDirection = None
 controlModifiers = [
     winUser.VK_LCONTROL, winUser.VK_RCONTROL,
     winUser.VK_LSHIFT, winUser.VK_RSHIFT,
@@ -386,7 +404,7 @@ controlModifiers = [
 kbdRight = keyboardHandler.KeyboardInputGesture.fromName("RightArrow")
 kbdLeft = keyboardHandler.KeyboardInputGesture.fromName("LeftArrow")
 def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionInfo, offset):
-    global releaserCounter, cachedTextInfo, suppressSelectionMessages
+    global releaserCounter, cachedTextInfo, cachedOffset, cachedCollapseDirection, suppressSelectionMessages
     while True:
         if releaserCounter != localReleaserCounter:
             return
@@ -395,11 +413,14 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionIn
             for k in controlModifiers
         ]
         if not any(status):
+            collapseDirection = cachedCollapseDirection
             cachedTextInfo = None
             cachedOffset = 0
-            vk = winUser.VK_RIGHT if offset >= 0 else winUser.VK_LEFT
-            input = makeVkInput([vk])
-            input *= abs(offset)
+            cachedCollapseDirection = None
+            input = []
+            if collapseDirection is not None:
+                input += makeVkInput([winUser.VK_RIGHT if collapseDirection > 0 else winUser.VK_LEFT])
+            input += makeVkInput([winUser.VK_RIGHT if offset >= 0 else winUser.VK_LEFT]) * abs(offset)
             with keyboardHandler.ignoreInjection():
                 winUser.SendInput(input)
             return
@@ -536,7 +557,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def caretMoveByWordImpl(self, gesture, wordRe, onError, wordCount):
         # Implementation in editables
-        global cachedTextInfo, cachedOffset
+        global cachedTextInfo, cachedOffset, cachedCollapseDirection
         chromeHack = False
         vsCodeHack = False
         def preprocessText(lineText):
@@ -568,13 +589,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             focus = api.getFocusObject()
             if focus.appModule.appName == 'chrome':
                 chromeHack = True
-                selectionInfo = focus.makeTextInfo(textInfos.POSITION_SELECTION)
-                if len(selectionInfo.text) != 0:
-                    # We can't move by word when something is selected due to chrome hack.
-                    # Alerting user to avoid weird behavior
-                    self.beeper.fancyBeep('HF', 100, left=25, right=25)
-                    ui.message(_("Selection is present. Cannot move by word in Chrome when selection is present. Please unselect first."))
-                    return
             if 'vs code' in focus.appModule.appName:
                 vsCodeHack = True
             if focus.appModule.appName == "devenv":
@@ -587,8 +601,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             if chromeHack and cachedTextInfo is not None:
                 caretInfo = cachedTextInfo.copy()
                 offset = cachedOffset
+                mylog(f"CC: cachedOffset={cachedOffset}")
             else:
-                caretInfo = focus.makeTextInfo(textInfos.POSITION_CARET)
+                caretInfo = focus.makeTextInfo(textInfos.POSITION_SELECTION)
+                if caretInfo.isCollapsed:
+                    cachedCollapseDirection = None
+                else:
+                    cachedCollapseDirection = 1 if direction > 0 else -1
                 caretInfo.collapse(end=(direction > 0))
                 offset = 0
 
@@ -620,19 +639,24 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             newWordIndex = max(0, newWordIndex)
                             newWordIndex = min(newWordIndex, len(boundaries) - 1)
                         adjustment = boundaries[newWordIndex] - caret
-                        offset += adjustment
                         mylog(f"adjustment={adjustment}=boundaries[newWordIndex] - caret={boundaries[newWordIndex]} - {caret}")
+                        offset += adjustment
+                        mylog(f"CC_sameLine: offset += adjustment; now offset={offset}")
+                        
                         newInfo = caretInfo
                         moveByCharacter(newInfo, adjustment)
                     else:
                         newInfo = lineInfo
                         adjustment =  boundaries[newWordIndex]
+                        mylog(f"adjustment={adjustment}")
                         if direction > 0:
                             offset += adjustment
+                            mylog(f"CC_nextLine: offset += adjustment; now offset={offset}")
                         else:
                             offset -= len(lineText) - adjustment
+                            mylog(f"CC_prevLine: offset -= len() + adjustment; now offset={offset}")
                         newInfo.collapse(end=False)
-                        mylog(f"adjustment={adjustment}")
+                        
                         moveByCharacter(newInfo, adjustment)
                     if newWordIndex + 1 < len(boundaries):
                         mylog("This is not the end of line word, so need to make a non-empty textInfo")
@@ -653,6 +677,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         # https://bugs.chromium.org/p/chromium/issues/detail?id=1260726#c2
                         global releaserCounter
                         cachedTextInfo = newInfo
+                        api.cti = cachedTextInfo
                         cachedOffset = offset
                         selectionInfo = newInfo.copy()
                         allInfo = focus.makeTextInfo(textInfos.POSITION_ALL)
@@ -668,12 +693,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     if lineAttempt == 0:
                         if direction > 0:
                             offset += len(lineText) - caret
+                            mylog(f"CC_firstNextLine: offset = {offset}")
                         else:
                             offset -= caret
+                            mylog(f"CC_firstPrevLine: offset = {offset}")
                     else:
                         offset += direction * len(lineText)
+                        mylog(f"CC_followingNextPrevLine: offset = {offset}")
                     # Also don't forget about newline character itself:
                     offset += direction
+                    mylog(f"CC_newLineCharacter: offset = {offset}")
                     result = lineInfo.move(unit, direction)
                     if result != 0:
                         result2 = 1
