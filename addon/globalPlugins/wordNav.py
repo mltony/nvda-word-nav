@@ -600,7 +600,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             focus = api.getFocusObject()
             if focus.appModule.appName == 'chrome':
                 chromeHack = True
-            if 'vs code' in focus.appModule.appName:
+            if (
+                'vs code' in focus.appModule.appName
+                or focus.appModule.appName.startswith('code')
+            ):
                 vsCodeHack = True
             if focus.appModule.appName == "devenv":
                 # In visual Studio paragraph textInfo returns the whole document.
