@@ -1,0 +1,134 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: WordNav1.8\n"
+"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
+"POT-Creation-Date: 2022-04-12 14:35+0800\n"
+"PO-Revision-Date: 2022-04-18 21:18+0800\n"
+"Last-Translator: Hongyi <hongyi010@qq.com>\n"
+"Language-Team: NVDA CN\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Poedit 3.0.1\n"
+
+#. Translators: Title for the settings dialog
+#. Add-on summary, usually the user visible name of the addon.
+#. Translators: Summary for this add-on to be shown on installation and add-on information.
+#: addon\globalPlugins\wordNav.py:177 addon\globalPlugins\wordNav.py:477
+#: buildVars.py:17
+msgid "WordNav"
+msgstr "单词导航"
+
+#: addon\globalPlugins\wordNav.py:179
+msgid "Default NVDA word navigation (WordNav disabled)"
+msgstr "NVDA 默认单词导航（不使用单词导航插件）"
+
+#: addon\globalPlugins\wordNav.py:180
+msgid "Notepad++ style navigation"
+msgstr "Notepad++ 风格导航"
+
+#: addon\globalPlugins\wordNav.py:181
+msgid "Bulky word navigation"
+msgstr "大型单词导航"
+
+#: addon\globalPlugins\wordNav.py:182
+msgid "Fine word navigation - good for programming"
+msgstr "精细单词导航——利于编程"
+
+#: addon\globalPlugins\wordNav.py:183
+msgid "MultiWord navigation - reads multiple words at once"
+msgstr "多单词导航——支持一次阅读多个单词"
+
+#: addon\globalPlugins\wordNav.py:184
+msgid "Custom regular expression word navigation"
+msgstr "自定义正则表达式导航"
+
+#: addon\globalPlugins\wordNav.py:187
+msgid "Unassigned"
+msgstr "未指定"
+
+#. checkbox override move by word
+#. Translators: Checkbox for override move by word
+#: addon\globalPlugins\wordNav.py:194
+msgid "Enable WordNav in editables"
+msgstr "将单词导航应用于可编辑文字。"
+
+#. checkbox enableInBrowseMode
+#. Translators: Checkbox for enableInBrowseMode
+#: addon\globalPlugins\wordNav.py:199
+msgid "Enable WordNav in browse mode."
+msgstr "将单词导航应用于浏览模式。"
+
+#. left control assignment Combo box
+#. Translators: Label for left control assignment combo box
+#: addon\globalPlugins\wordNav.py:204
+msgid "Left control behavior:"
+msgstr "左 Ctrl 的行为："
+
+#. right control assignment Combo box
+#. Translators: Label for right control assignment combo box
+#: addon\globalPlugins\wordNav.py:209
+msgid "Right control behavior:"
+msgstr "右 Ctrl 的行为："
+
+#. Left Control+Windows assignment Combo box
+#. Translators: Label for control+windows assignment combo box
+#: addon\globalPlugins\wordNav.py:214
+msgid "Left Control+Windows behavior:"
+msgstr "左 Ctrl+Windows 的行为："
+
+#. Right Control+Windows assignment Combo box
+#. Translators: Label for control+windows assignment combo box
+#: addon\globalPlugins\wordNav.py:220
+msgid "Right Control+Windows behavior:"
+msgstr "右 Ctrl+Windows 的行为："
+
+#. bulkyWordPunctuation
+#. Translators: Label for bulkyWordPunctuation edit box
+#: addon\globalPlugins\wordNav.py:225
+msgid "Bulky word separators:"
+msgstr "用于大型单词导航的分隔符："
+
+#. bulkyWordPunctuation
+#. Translators: Label for bulkyWordPunctuation edit box
+#: addon\globalPlugins\wordNav.py:230
+msgid "Custom word regular expression:"
+msgstr "自定义正则表达式："
+
+#. MultiWord word count
+#. Translators: Label for multiWord wordCount edit box
+#: addon\globalPlugins\wordNav.py:234
+msgid "Word count for multiWord navigation:"
+msgstr "多单词导航每次阅读的单词数："
+
+#. paragraphChimeVolumeSlider
+#. Translators: Paragraph crossing chime volume
+#: addon\globalPlugins\wordNav.py:238
+msgid "Volume of chime when crossing paragraph border"
+msgstr "跨越段落时的提示音量："
+
+#. applicationsBlacklist edit
+#. Translators: Label for blacklisted applications edit box
+#: addon\globalPlugins\wordNav.py:244
+msgid "Disable WordNav in applications (comma-separated list)"
+msgstr "禁用单词导航的应用（以逗号分隔）："
+
+#: addon\globalPlugins\wordNav.py:253
+msgid "WordCount must be a positive integer greater than 2."
+msgstr "单词数必须是一个大于2的正整数。"
+
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
+#: buildVars.py:20
+msgid "Improved navigate by word commands."
+msgstr "改进了用于单词导航的命令。"
+
+#~ msgid "MultiWord navigation"
+#~ msgstr "多单词导航"
