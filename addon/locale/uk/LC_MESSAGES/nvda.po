@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: WordNav\n"
+"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
+"POT-Creation-Date: 2022-07-01 10:19+0300\n"
+"PO-Revision-Date: 2022-07-01 10:46+0300\n"
+"Last-Translator: \n"
+"Language-Team: Kostyantyn Hladkyi (Ukrainian NVDA Community)\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+"X-Generator: Poedit 3.1\n"
+"X-Poedit-Basepath: ../../../globalPlugins\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+"X-Poedit-SearchPath-0: .\n"
+
+#. Translators: Title for the settings dialog
+#. Add-on summary, usually the user visible name of the addon.
+#. Translators: Summary for this add-on to be shown on installation and add-on information.
+#: addon\globalPlugins\wordNav.py:177 addon\globalPlugins\wordNav.py:477
+#: buildVars.py:17
+msgid "WordNav"
+msgstr "Навігація по словах"
+
+#: addon\globalPlugins\wordNav.py:179
+msgid "Default NVDA word navigation (WordNav disabled)"
+msgstr "Навігація по словах NVDA за замовчуванням (WordNav вимкнено)"
+
+#: addon\globalPlugins\wordNav.py:180
+msgid "Notepad++ style navigation"
+msgstr "Навігація у стилі Notepad++"
+
+#: addon\globalPlugins\wordNav.py:181
+msgid "Bulky word navigation"
+msgstr "Навігація по довгих словах"
+
+#: addon\globalPlugins\wordNav.py:182
+msgid "Fine word navigation - good for programming"
+msgstr "Тонка навігація по словах - добре для програмування"
+
+#: addon\globalPlugins\wordNav.py:183
+msgid "MultiWord navigation - reads multiple words at once"
+msgstr "Багатослівна навігація - одночасне читання кількох слів"
+
+#: addon\globalPlugins\wordNav.py:184
+msgid "Custom regular expression word navigation"
+msgstr "Навігація по словах за допомогою користувацьких регулярних виразів"
+
+#: addon\globalPlugins\wordNav.py:187
+msgid "Unassigned"
+msgstr "Непризначено"
+
+#. checkbox override move by word
+#. Translators: Checkbox for override move by word
+#: addon\globalPlugins\wordNav.py:194
+msgid "Enable WordNav in editables"
+msgstr "Увімкнути навігацію по словах у полях редагування"
+
+#. checkbox enableInBrowseMode
+#. Translators: Checkbox for enableInBrowseMode
+#: addon\globalPlugins\wordNav.py:199
+msgid "Enable WordNav in browse mode."
+msgstr "Увімкнути навігацію  по словах в режимі огляду."
+
+#. left control assignment Combo box
+#. Translators: Label for left control assignment combo box
+#: addon\globalPlugins\wordNav.py:204
+msgid "Left control behavior:"
+msgstr "Поведінка лівого Control:"
+
+#. right control assignment Combo box
+#. Translators: Label for right control assignment combo box
+#: addon\globalPlugins\wordNav.py:209
+msgid "Right control behavior:"
+msgstr "Поведінка правого Control:"
+
+#. Left Control+Windows assignment Combo box
+#. Translators: Label for control+windows assignment combo box
+#: addon\globalPlugins\wordNav.py:214
+msgid "Left Control+Windows behavior:"
+msgstr "Поведінка лівого Control+Windos:"
+
+#. Right Control+Windows assignment Combo box
+#. Translators: Label for control+windows assignment combo box
+#: addon\globalPlugins\wordNav.py:220
+msgid "Right Control+Windows behavior:"
+msgstr "Поведінка правого Control+Windows:"
+
+#. bulkyWordPunctuation
+#. Translators: Label for bulkyWordPunctuation edit box
+#: addon\globalPlugins\wordNav.py:225
+msgid "Bulky word separators:"
+msgstr "Розділювачі довгих слів:"
+
+#. bulkyWordPunctuation
+#. Translators: Label for bulkyWordPunctuation edit box
+#: addon\globalPlugins\wordNav.py:230
+msgid "Custom word regular expression:"
+msgstr "Користувацький регулярний вираз для слів:"
+
+#. MultiWord word count
+#. Translators: Label for multiWord wordCount edit box
+#: addon\globalPlugins\wordNav.py:234
+msgid "Word count for multiWord navigation:"
+msgstr "Кількість слів для багатослівної навігації:"
+
+#. paragraphChimeVolumeSlider
+#. Translators: Paragraph crossing chime volume
+#: addon\globalPlugins\wordNav.py:238
+msgid "Volume of chime when crossing paragraph border"
+msgstr "Гучність сигналу при перетині межі абзацу"
+
+#. applicationsBlacklist edit
+#. Translators: Label for blacklisted applications edit box
+#: addon\globalPlugins\wordNav.py:244
+msgid "Disable WordNav in applications (comma-separated list)"
+msgstr ""
+"Вимкнути навігацію по словах у програмах (список, розділений комами)"
+
+#: addon\globalPlugins\wordNav.py:253
+msgid "WordCount must be a positive integer greater than 2."
+msgstr "Кількість слів має бути цілим додатнім числом, більше ніж 2."
+
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
+#: buildVars.py:20
+msgid "Improved navigate by word commands."
+msgstr "Покращена навігація по словах за допомогою відповідних команд."
