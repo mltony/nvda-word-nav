@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: WordNav\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2022-07-01 10:19+0300\n"
-"PO-Revision-Date: 2022-07-01 10:46+0300\n"
+"POT-Creation-Date: 2023-04-30 01:39+0800\n"
+"PO-Revision-Date: 2023-04-30 01:40+0800\n"
 "Last-Translator: \n"
 "Language-Team: Kostyantyn Hladkyi (Ukrainian NVDA Community)\n"
 "Language: uk\n"
@@ -12,16 +12,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
 "%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
-"X-Generator: Poedit 3.1\n"
+"X-Generator: Poedit 2.4.3\n"
 "X-Poedit-Basepath: ../../../globalPlugins\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-SearchPath-0: .\n"
 
 #. Translators: Title for the settings dialog
 #. Add-on summary, usually the user visible name of the addon.
-#. Translators: Summary for this add-on to be shown on installation and add-on information.
+#. Translators: Summary for this add-on
+#. to be shown on installation and add-on information found in Add-ons Manager.
 #: addon\globalPlugins\wordNav.py:177 addon\globalPlugins\wordNav.py:477
-#: buildVars.py:17
+#: buildVars.py:23
 msgid "WordNav"
 msgstr "Навігація по словах"
 
@@ -117,8 +118,7 @@ msgstr "Гучність сигналу при перетині межі абз�
 #. Translators: Label for blacklisted applications edit box
 #: addon\globalPlugins\wordNav.py:244
 msgid "Disable WordNav in applications (comma-separated list)"
-msgstr ""
-"Вимкнути навігацію по словах у програмах (список, розділений комами)"
+msgstr "Вимкнути навігацію по словах у програмах (список, розділений комами)"
 
 #: addon\globalPlugins\wordNav.py:253
 msgid "WordCount must be a positive integer greater than 2."
@@ -126,6 +126,6 @@ msgstr "Кількість слів має бути цілим додатнім 
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-#: buildVars.py:20
+#: buildVars.py:26
 msgid "Improved navigate by word commands."
 msgstr "Покращена навігація по словах за допомогою відповідних команд."

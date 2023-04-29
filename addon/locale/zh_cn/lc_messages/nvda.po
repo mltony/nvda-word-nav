@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: WordNav1.8\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2022-04-12 14:35+0800\n"
-"PO-Revision-Date: 2022-04-18 21:18+0800\n"
+"POT-Creation-Date: 2023-04-30 01:39+0800\n"
+"PO-Revision-Date: 2023-04-30 01:40+0800\n"
 "Last-Translator: Hongyi <hongyi010@qq.com>\n"
 "Language-Team: NVDA CN\n"
 "Language: zh_CN\n"
@@ -16,13 +16,14 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Poedit 3.0.1\n"
+"X-Generator: Poedit 2.4.3\n"
 
 #. Translators: Title for the settings dialog
 #. Add-on summary, usually the user visible name of the addon.
-#. Translators: Summary for this add-on to be shown on installation and add-on information.
+#. Translators: Summary for this add-on
+#. to be shown on installation and add-on information found in Add-ons Manager.
 #: addon\globalPlugins\wordNav.py:177 addon\globalPlugins\wordNav.py:477
-#: buildVars.py:17
+#: buildVars.py:23
 msgid "WordNav"
 msgstr "单词导航"
 
@@ -126,7 +127,7 @@ msgstr "单词数必须是一个大于2的正整数。"
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-#: buildVars.py:20
+#: buildVars.py:26
 msgid "Improved navigate by word commands."
 msgstr "改进了用于单词导航的命令。"
 
