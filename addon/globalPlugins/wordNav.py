@@ -1,6 +1,5 @@
-# -*- coding: UTF-8 -*-
 #A part of  WordNav addon for NVDA
-#Copyright (C) 2020 Tony Malykh
+#Copyright (C) 2020-2024 Tony Malykh
 #This file is covered by the GNU General Public License.
 #See the file COPYING.txt for more details.
 
@@ -47,8 +46,9 @@ import watchdog
 import wave
 import winUser
 import wx
+from dataclasses import dataclass
+from appModules.devenv import VsWpfTextViewTextInfo
 
-winmm = ctypes.windll.winmm
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -57,10 +57,10 @@ except AttributeError:
 
 
 
-debug = False
+debug = True
 if debug:
     import threading
-    LOG_FILE_NAME = "C:\\Users\\tony\\Dropbox\\1.txt"
+    LOG_FILE_NAME = "C:\\Users\\tony\\1.txt"
     f = open(LOG_FILE_NAME, "w")
     f.close()
     LOG_MUTEX = threading.Lock()
@@ -141,7 +141,7 @@ def generateWordReBulky(punctuation=None):
         punctuation = getConfig("bulkyWordPunctuation")
     punctuation = escapeRegex(punctuation)
     space = f"\\s{punctuation}"
-    wordReBulkyString = f"$|(^|(?<=[{space}]))[^{space}]"
+    wordReBulkyString = f"(^|(?<=[{space}]))[^{space}]|[\r\n]+"
     wordReBulky = re.compile(wordReBulkyString)
     return wordReBulky
 
@@ -465,13 +465,212 @@ def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionIn
 
 
 
-originalSpeakSelectionChange = None
-suppressSelectionMessages = False
-def preSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs):
+#originalSpeakSelectionChange = None
+#suppressSelectionMessages = False
+if False:
+  def preSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs):
     global suppressSelectionMessages
     if suppressSelectionMessages:
         return False
     return originalSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs)
+
+def isBlacklistedApp(self):
+    focus = self
+    appName = focus.appModule.appName
+    if appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(","):
+        return True
+    return False
+
+def getModifiers(gesture):
+    control = None
+    windows = False
+    for modVk, modExt in gesture.modifiers:
+        if modVk == winUser.VK_LCONTROL:
+            control = 'left'
+        if modVk == winUser.VK_RCONTROL:
+            control = 'right'
+        if False:
+            if not modExt:
+                # Left control
+                control = "left"
+            else:
+                # Right control
+                control = "right"
+        if modVk in [winUser.VK_LWIN, winUser.VK_RWIN]:
+            windows = True
+    if control is None:
+        raise Exception("Control is not pressed - please don't reassign WordNav keystrokes!")
+    result = control + "Control"
+    if windows:
+        result += "Windows"
+    return result
+
+def script_caret_moveByWordWordNav(self,gesture):
+    mods = getModifiers(gesture)
+    key = gesture.mainKeyName
+    blacklisted = isBlacklistedApp(self)
+    if blacklisted:
+        if 'Windows' not in mods:
+            return editableText.EditableText.script_caret_moveByWord(self, gesture)
+        else:
+            gesture.send()
+        return
+    option = f"{mods}AssignmentIndex"
+    pattern, wordCount = getRegexByFunction(getConfig(option))
+    direction = 1 if "rightArrow" in key else -1
+    caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
+    doWordMove(caretInfo, pattern, direction, wordCount)
+
+
+@dataclass
+class WordDefinition:
+    name: str
+    wordStart: re.Pattern
+    wordEnd: re.Pattern
+
+class ContextParagraph:
+    textInfo: textInfos.TextInfo
+    text: str
+    length: int
+    caretOffset: int = None
+    anchorOffset: int = None
+    stops: list[int] = None
+    
+    def mark(
+        beginPattern,
+        endPattern=None,
+        anchorLocation=None
+    ):
+        beginStops = [
+            m.start()
+            for m in beginPattern.finditer(self.text)
+        ]
+        if endPattern is None: 
+            self.stops = beginStops
+            return
+        if anchorLocation is None:
+            raise RuntimeError
+        endStops = [
+            m.start()
+            for m in endPattern.finditer(self.text)
+        ]
+        if anchorLocation > 0:
+            self.stops = beginStops
+        elif anchorLocation < 0:
+            self.stops = endStops
+        else:
+            if self.anchorOffset is None:
+                raise RuntimeError("Expected to have anchor in current paragraph")
+            allStops = [
+                x
+                for x in beginStops
+                if x <= self.anchorOffset
+            ] + [
+                x
+                for x in endStops
+                if x >= self.anchorOffset
+            ]
+            # dedupe
+            self.stops = sorted(list(set(stops)))
+            
+
+    
+
+    def __init__(
+            self,
+            textInfo: textInfos.TextInfo,
+    ):
+        self.textInfo = textInfo
+        self.text = textInfo.text
+        self.pythonicLen = len(self.text)
+
+
+@dataclass
+class IndexAndOffset:
+    paragraphIndex: int
+    offset: int
+
+beeper = Beeper()
+def chimeCrossParagraphBorder():
+    volume = getConfig("paragraphChimeVolume")
+    beeper.fancyBeep("AC#EG#", 30, volume, volume)
+
+def chimeNoNextWord():
+    volume = 25
+    beeper.fancyBeep('HF', 100, left=volume, right=volume)
+
+def getParagraphUnit(textInfo):
+    if isinstance(textInfo, VsWpfTextViewTextInfo):
+        # TextInfo in Visual Studio doesn't understand UNIT_PARAGRAPH
+        return textInfos.UNIT_LINE
+    # In Windows 11 Notepad, we should use UNIT_PARAGRAPH instead of UNIT_LINE in order to handle wrapped lines correctly
+    return textInfos.UNIT_PARAGRAPH
+
+
+def doWordMove(caretInfo, pattern, direction, wordCount=1):
+    tones.beep(500, 50)
+    paragraphUnit = getParagraphUnit(caretInfo)
+    if not caretInfo.isCollapsed:
+        raise RuntimeError("Caret must be collapsed")
+    paragraphInfo = caretInfo.copy()
+    paragraphInfo.expand(paragraphUnit)
+    pretextInfo = paragraphInfo.copy()
+    pretextInfo.setEndPoint(caretInfo, 'endToEnd')
+    caretOffset = len(pretextInfo.text)
+    crossedParagraph = False
+    MAX_ATTEMPTS = 10
+    for attempt in range(MAX_ATTEMPTS):
+        text = paragraphInfo.text
+        mylog(f"attempt! {caretOffset=} n={len(text)} {text=}")
+        stops = [
+            m.start()
+            for m in pattern.finditer(text)
+        ]
+        mylog(f"{stops=}")
+        if direction > 0:
+            newWordIndex = bisect.bisect_right(stops, caretOffset)
+        else:
+            newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
+        if 0 <= newWordIndex < len(stops):
+            # Next word found in the same paragraph
+            if attempt == 0 and wordCount > 1:
+                # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
+                newWordIndex += (wordCount - 1) * direction
+                newWordIndex = max(0, newWordIndex)
+                newWordIndex = min(newWordIndex, len(stops) - 1)
+            newCaretOffset = stops[newWordIndex]
+            try:
+                wordEndOffset = stops[newWordIndex + wordCount]
+            except IndexError:
+                wordEndOffset = len(text)
+            newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
+            wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
+            wordInfo = newCaretInfo.copy()
+            wordInfo.setEndPoint(wordEndInfo, "endToEnd")
+            newCaretInfo.updateCaret()
+            speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
+            if crossedParagraph:
+                chimeCrossParagraphBorder()
+            return
+        else:
+            # New word found in the next paragraph!
+            crossedParagraph = True
+            oldParagraphInfo = paragraphInfo.copy()
+            result = paragraphInfo.move(paragraphUnit, direction)
+            if (
+                result == 0
+                or direction * paragraphInfo.compareEndPoints(oldParagraphInfo, 'startToStart') <= 0
+            ):
+                chimeNoNextWord()
+                return
+            paragraphInfo.expand(paragraphUnit)
+            if direction > 0:
+                caretOffset = -1
+            else:
+                caretOffset = 10**9
+            # Now iterate the while loop one more time
+
+doWordMove.__doc = _("WordNav move by word")
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = _("WordNav")
@@ -490,46 +689,24 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         gui.settingsDialogs.NVDASettingsDialog.categoryClasses.remove(SettingsDialog)
 
     def injectHooks(self):
-        global originalSpeakSelectionChange
-        self.originalMoveByWord = editableText.EditableText.script_caret_moveByWord
-        editableText.EditableText.script_caret_moveByWord = lambda selfself, gesture, *args, **kwargs: self.script_caretMoveByWord(selfself, gesture, *args, **kwargs)
-        editableText.EditableText.script_caret_moveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_caretMoveByWordEx(selfself, gesture, *args, **kwargs)
-        editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordEx",
-        editableText.EditableText._EditableText__gestures["kb:control+Windows+RightArrow"] = "caret_moveByWordEx",
-        self.originalMoveBack = cursorManager.CursorManager.script_moveByWord_back
-        self.originalMoveForward = cursorManager.CursorManager.script_moveByWord_forward
-        cursorManager.CursorManager.script_moveByWord_back = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
-        cursorManager.CursorManager.script_moveByWord_forward = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
-        cursorManager.CursorManager.script_cursorMoveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWordEx(selfself, gesture, *args, **kwargs)
-        cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"] = "cursorMoveByWordEx",
-        cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"] = "cursorMoveByWordEx",
-        originalSpeakSelectionChange = speech.speakSelectionChange
-        speech.speakSelectionChange = preSpeakSelectionChange
-
-
+        editableText.EditableText.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
+        editableText.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav",
+        editableText.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav",
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordWordNav",
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav",
+        if False:
+            self.originalMoveBack = cursorManager.CursorManager.script_moveByWord_back
+            self.originalMoveForward = cursorManager.CursorManager.script_moveByWord_forward
+            cursorManager.CursorManager.script_moveByWord_back = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
+            cursorManager.CursorManager.script_moveByWord_forward = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
+            cursorManager.CursorManager.script_cursorMoveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWordEx(selfself, gesture, *args, **kwargs)
+            cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"] = "cursorMoveByWordEx",
+            cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"] = "cursorMoveByWordEx",
 
     def  removeHooks(self):
-        editableText.EditableText.script_caret_moveByWord = self.originalMoveByWord
-        del editableText.EditableText.script_caret_moveByWordEx
-        del editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"]
-        del editableText.EditableText._EditableText__gestures["kb:control+Windows+RightArrow"]
-        cursorManager.CursorManager.script_moveByWord_back = self.originalMoveBack
-        cursorManager.CursorManager.script_moveByWord_forward = self.originalMoveForward
-        del cursorManager.CursorManager.script_cursorMoveByWordEx
-        del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"]
-        del cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"]
-        speech.speakSelectionChange = originalSpeakSelectionChange
+        pass
 
-    def chimeCrossParagraphBorder(self):
-        volume = getConfig("paragraphChimeVolume")
-        self.beeper.fancyBeep("AC#EG#", 30, volume, volume)
 
-    def isBlacklistedApp(self):
-        focus = api.getFocusObject()
-        appName = focus.appModule.appName
-        if appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(","):
-            return True
-        return False
 
     def getControl(self, gesture):
         for modVk, modExt in gesture.generalizedModifiers:
