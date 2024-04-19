@@ -637,19 +637,18 @@ def _moveToNextParagraph(
     return True
 
 
-def moveToCodePointOffsetWithLeftBackOff(textInfo, offset):
+class MoveToCodePointOffsetError(Exception):
+    pass
+
+def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
-    while offset >= 0:
-        try:
-            return textInfo.moveToCodepointOffset(offset)
-        except RuntimeError as e:
-            if str(e) == exceptionMessage:
-                offset -= 1
-                continue
-            else:
-                raise e
-    raise RuntimeError("Backoff failed")
-        
+    try:
+        return textInfo.moveToCodepointOffset(offset)
+    except RuntimeError as e:
+        if str(e) == exceptionMessage:
+            raise MoveToCodePointOffsetError(e)
+        else:
+            raise e
 
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
     paragraphUnit = getParagraphUnit(caretInfo)
@@ -689,10 +688,10 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             except IndexError:
                 wordEndOffset = len(text)
             mylog(f"resultWordOffsets: {newCaretOffset}..{wordEndOffset}")
-            #newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
-            #wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
-            newCaretInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, newCaretOffset)
-            wordEndInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, wordEndOffset)
+            newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
+            wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
+            #newCaretInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, newCaretOffset)
+            #wordEndInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, wordEndOffset)
             api.a = newCaretInfo.copy()
             api.b = wordEndInfo.copy()
             wordInfo = newCaretInfo.copy()
