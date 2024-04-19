@@ -110,26 +110,28 @@ initConfiguration()
 
 
 # Regular expression for the beginning of a word. Matches:
-#  1. Empty string
-# 2. Beginning of any word: \b\w
-# 3. Punctuation mark preceded by non-punctuation mark: (?<=[\w\s])[^\w\s]
-# 4. Punctuation mark preceded by beginning of the string
-wordReString = r'^(?=\s*$)|\b\w|(?<=[\w\s])[^\w\s]|^[^\w\s]'
+# 1. Empty string
+# 2. Newline \r or \n characters
+# 3. Beginning of any word: \b\w
+# 4. Punctuation mark preceded by non-punctuation mark: (?<=[\w\s])[^\w\s]
+# 5. Punctuation mark preceded by beginning of the string
+wordReString = r'^(?=\s*$)|[\r\n]+|\b\w|(?<=[\w\s])[^\w\s]|^[^\w\s]'
 wordRe = re.compile(wordReString)
 
 # Regular expression for beginning of fine word. This word definition breaks
 # camelCaseIdentifiers  and underscore_separated_identifiers into separate sections for easier editing.
 # Includes all conditions for wordRe plus additionally:
-# 5. Word letter, that is not  underscore, preceded by underscore.
-#6. Capital letter preceded by a lower-case letter.
+# 6. Word letter, that is not  underscore, preceded by underscore.
+# 7. Capital letter preceded by a lower-case letter.
 wordReFineString = wordReString + "|(?<=_)(?!_)\w|(?<=[a-z])[A-Z]"
 wordReFineString += r"|(?<=\d)[a-zA-Z]|(?<=[a-zA-Z])\d"
 wordReFine = re.compile(wordReFineString)
 
 # Regular expression for bulky words. Treats any punctuation signs as part of word.
 # Matches either:
-# 1. End of string, or
-# 2.     Non-space character preceded either by beginning of the string or a space character.
+# 1. Empty string, or
+# 2. End of string, or
+# 3.     Non-space character preceded either by beginning of the string or a space character.
 regexpEscapeSet = set(r". \ + * ? [ ^ ] $ ( ) { } = ! < > | : -".split())
 def escapeRegex(s):
     def escapeCharacter(c):
@@ -137,12 +139,14 @@ def escapeRegex(s):
             return f"\\{c}"
         return c
     return "".join(map(escapeCharacter, s))
+
 def generateWordReBulky(punctuation=None):
     if punctuation is None:
         punctuation = getConfig("bulkyWordPunctuation")
     punctuation = escapeRegex(punctuation)
     space = f"\\s{punctuation}"
     wordReBulkyString = f"(^|(?<=[{space}]))[^{space}]|[\r\n]+"
+    #wordReBulkyString = f"^(?=\s*$)|(^|(?<=[{space}]))[^{space}]|[\r\n]+"
     wordReBulky = re.compile(wordReBulkyString)
     return wordReBulky
 
@@ -668,7 +672,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             m.start()
             for m in pattern.finditer(text)
         ]
-        while len(stops) > 0:
+        #while len(stops) > 0:
+        while True:
             mylog(f"wt {stops=}")
             if direction > 0:
                 newWordIndex = bisect.bisect_right(stops, caretOffset)
@@ -740,8 +745,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     caretOffset = 10**10
                 # Now break out of inner while loop and iterate the outer loop one more time
                 break
-        if len(stops) == 0:
-            raise RuntimeError("Unexpected error: no valid word stops found within paragraph.")
+        #if len(stops) == 0:
+            #raise RuntimeError("Unexpected error: no valid word stops found within paragraph.")
 
 doWordMove.__doc = _("WordNav move by word")
 
