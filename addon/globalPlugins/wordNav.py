@@ -668,51 +668,80 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             m.start()
             for m in pattern.finditer(text)
         ]
-        mylog(f"{stops=}")
-        if direction > 0:
-            newWordIndex = bisect.bisect_right(stops, caretOffset)
-        else:
-            newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
-        mylog(f"{newWordIndex=}")
-        if 0 <= newWordIndex < len(stops):
-            # Next word found in the same paragraph
-            mylog(f"Same Para!")
-            if attempt == 0 and wordCount > 1:
-                # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
-                newWordIndex += (wordCount - 1) * direction
-                newWordIndex = max(0, newWordIndex)
-                newWordIndex = min(newWordIndex, len(stops) - 1)
-            newCaretOffset = stops[newWordIndex]
-            try:
-                wordEndOffset = stops[newWordIndex + wordCount]
-            except IndexError:
-                wordEndOffset = len(text)
-            mylog(f"resultWordOffsets: {newCaretOffset}..{wordEndOffset}")
-            newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
-            wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
-            #newCaretInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, newCaretOffset)
-            #wordEndInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, wordEndOffset)
-            api.a = newCaretInfo.copy()
-            api.b = wordEndInfo.copy()
-            wordInfo = newCaretInfo.copy()
-            wordInfo.setEndPoint(wordEndInfo, "endToEnd")
-            newCaretInfo.updateCaret()
-            speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
-            if crossedParagraph:
-                chimeCrossParagraphBorder()
-            return
-        else:
-            # New word found in the next paragraph!
-            mylog(f"Next Para!")
-            crossedParagraph = True
-            if not _moveToNextParagraph(paragraphInfo, direction):
-                chimeNoNextWord()
-                return
+        while len(stops) > 0:
+            mylog(f"wt {stops=}")
             if direction > 0:
-                caretOffset = -1
+                newWordIndex = bisect.bisect_right(stops, caretOffset)
             else:
-                caretOffset = 10**10
-            # Now iterate the while loop one more time
+                newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
+            mylog(f"{newWordIndex=}")
+            if 0 <= newWordIndex < len(stops):
+                # Next word found in the same paragraph
+                # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
+                mylog(f"Same Para!")
+                if attempt == 0 and wordCount > 1:
+                    # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
+                    newWordIndex += (wordCount - 1) * direction
+                    newWordIndex = max(0, newWordIndex)
+                    newWordIndex = min(newWordIndex, len(stops) - 1)
+                newCaretOffset = stops[newWordIndex]
+                try:
+                    wordEndOffset = stops[newWordIndex + wordCount]
+                    wordEndIsParagraphEnd = False
+                except IndexError:
+                    wordEndOffset = len(text)
+                    wordEndIsParagraphEnd = True
+                mylog(f"resultWordOffsets: {newCaretOffset}..{wordEndOffset}")
+                #newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
+                #wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
+                try:
+                    newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset)
+                except MoveToCodePointOffsetError:
+                    # This happens in MSWord when trying to navigate over bulleted list item.
+                    mylog(f"Oops cannot move to word start offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
+                    del stops[newWordIndex]
+                    continue #inner loop
+                if newCaretInfo.compareEndPoints(caretInfo, "startToStart") == 0:
+                    if direction < 0:
+                        mylog(f"Oh no, caret didn't move at all when moving backward. offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
+                        # This happens in MSWord with UIA enabled when trying to move over a bulleted list item.
+                        del stops[newWordIndex]
+                        continue #inner loop
+                    else:
+                        # This has never been observed yet.
+                        raise RuntimeError(f"Cursor didn't move {direction=}")
+                try:
+                    wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset)
+                except MoveToCodePointOffsetError as e:
+                    mylog(f"Oops cannot move to word end offset={wordEndOffset} - deleting stops[{newWordIndex + wordCount}]={stops[newWordIndex + wordCount]}")
+                    if wordEndIsParagraphEnd:
+                        raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
+                    del stops[newWordIndex + wordCount]
+                    continue # inner loop
+                api.a = newCaretInfo.copy()
+                api.b = wordEndInfo.copy()
+                wordInfo = newCaretInfo.copy()
+                wordInfo.setEndPoint(wordEndInfo, "endToEnd")
+                newCaretInfo.updateCaret()
+                speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
+                if crossedParagraph:
+                    chimeCrossParagraphBorder()
+                return
+            else:
+                # New word found in the next paragraph!
+                mylog(f"Next Para!")
+                crossedParagraph = True
+                if not _moveToNextParagraph(paragraphInfo, direction):
+                    chimeNoNextWord()
+                    return
+                if direction > 0:
+                    caretOffset = -1
+                else:
+                    caretOffset = 10**10
+                # Now break out of inner while loop and iterate the outer loop one more time
+                break
+        if len(stops) == 0:
+            raise RuntimeError("Unexpected error: no valid word stops found within paragraph.")
 
 doWordMove.__doc = _("WordNav move by word")
 
