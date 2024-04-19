@@ -48,6 +48,7 @@ import winUser
 import wx
 from dataclasses import dataclass
 from appModules.devenv import VsWpfTextViewTextInfo
+from NVDAObjects import behaviors
 
 
 try:
@@ -109,11 +110,11 @@ initConfiguration()
 
 
 # Regular expression for the beginning of a word. Matches:
-#  1. End of string
+#  1. Empty string
 # 2. Beginning of any word: \b\w
 # 3. Punctuation mark preceded by non-punctuation mark: (?<=[\w\s])[^\w\s]
 # 4. Punctuation mark preceded by beginning of the string
-wordReString = r'$|\b\w|(?<=[\w\s])[^\w\s]|^[^\w\s]'
+wordReString = r'^(?=\s*$)|\b\w|(?<=[\w\s])[^\w\s]|^[^\w\s]'
 wordRe = re.compile(wordReString)
 
 # Regular expression for beginning of fine word. This word definition breaks
@@ -607,8 +608,50 @@ def getParagraphUnit(textInfo):
     return textInfos.UNIT_PARAGRAPH
 
 
+def _moveToNextParagraph(
+        paragraph: textInfos.TextInfo,
+        direction: int,
+) -> bool:
+    paragraphUnit = getParagraphUnit(paragraph)
+    oldParagraph = paragraph.copy()
+    if direction > 0:
+        try:
+            paragraph.collapse(end=True)
+        except RuntimeError:
+            # Microsoft Word raises RuntimeError when collapsing textInfo to the last character of the document.
+            return False
+    else:
+        paragraph.collapse(end=False)
+        result = paragraph.move(textInfos.UNIT_CHARACTER, -1)
+        if result == 0:
+            return False
+    paragraph.expand(paragraphUnit)
+    #if paragraph.isCollapsed:
+        #return False
+    if (
+        direction > 0
+        and paragraph.compareEndPoints(oldParagraph, "startToStart") <= 0
+    ):
+        # Sometimes in Microsoft word it just selects the same last paragraph repeatedly
+        return False
+    return True
+
+
+def moveToCodePointOffsetWithLeftBackOff(textInfo, offset):
+    exceptionMessage = "Unable to find desired offset in TextInfo."
+    while offset >= 0:
+        try:
+            return textInfo.moveToCodepointOffset(offset)
+        except RuntimeError as e:
+            if str(e) == exceptionMessage:
+                offset -= 1
+                continue
+            else:
+                raise e
+    raise RuntimeError("Backoff failed")
+        
+
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
-    tones.beep(500, 50)
     paragraphUnit = getParagraphUnit(caretInfo)
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
@@ -631,8 +674,10 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             newWordIndex = bisect.bisect_right(stops, caretOffset)
         else:
             newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
+        mylog(f"{newWordIndex=}")
         if 0 <= newWordIndex < len(stops):
             # Next word found in the same paragraph
+            mylog(f"Same Para!")
             if attempt == 0 and wordCount > 1:
                 # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
                 newWordIndex += (wordCount - 1) * direction
@@ -643,8 +688,13 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordEndOffset = stops[newWordIndex + wordCount]
             except IndexError:
                 wordEndOffset = len(text)
-            newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
-            wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
+            mylog(f"resultWordOffsets: {newCaretOffset}..{wordEndOffset}")
+            #newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
+            #wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
+            newCaretInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, newCaretOffset)
+            wordEndInfo = moveToCodePointOffsetWithLeftBackOff(paragraphInfo, wordEndOffset)
+            api.a = newCaretInfo.copy()
+            api.b = wordEndInfo.copy()
             wordInfo = newCaretInfo.copy()
             wordInfo.setEndPoint(wordEndInfo, "endToEnd")
             newCaretInfo.updateCaret()
@@ -654,20 +704,15 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             return
         else:
             # New word found in the next paragraph!
+            mylog(f"Next Para!")
             crossedParagraph = True
-            oldParagraphInfo = paragraphInfo.copy()
-            result = paragraphInfo.move(paragraphUnit, direction)
-            if (
-                result == 0
-                or direction * paragraphInfo.compareEndPoints(oldParagraphInfo, 'startToStart') <= 0
-            ):
+            if not _moveToNextParagraph(paragraphInfo, direction):
                 chimeNoNextWord()
                 return
-            paragraphInfo.expand(paragraphUnit)
             if direction > 0:
                 caretOffset = -1
             else:
-                caretOffset = 10**9
+                caretOffset = 10**10
             # Now iterate the while loop one more time
 
 doWordMove.__doc = _("WordNav move by word")
@@ -690,10 +735,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def injectHooks(self):
         editableText.EditableText.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
-        editableText.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav",
-        editableText.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav",
-        editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordWordNav",
-        editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav",
+        editableText.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav"
+        behaviors.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
+        behaviors.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
         if False:
             self.originalMoveBack = cursorManager.CursorManager.script_moveByWord_back
             self.originalMoveForward = cursorManager.CursorManager.script_moveByWord_forward
