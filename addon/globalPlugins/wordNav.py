@@ -6,6 +6,7 @@
 import addonHandler
 import api
 import bisect
+import browseMode
 import collections
 import config
 import controlTypes
@@ -49,7 +50,8 @@ import wx
 from dataclasses import dataclass
 from appModules.devenv import VsWpfTextViewTextInfo
 from NVDAObjects import behaviors
-
+import weakref
+from NVDAObjects.IAccessible import IAccessible
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -95,6 +97,7 @@ def initConfiguration():
         "paragraphChimeVolume" : "integer( default=5, min=0, max=100)",
         "wordCount": "integer( default=5, min=1, max=1000)",
         "applicationsBlacklist" : f"string( default='')",
+        "disableInGoogleDocs" : "boolean( default=False)",
     }
     config.conf.spec[module] = confspec
 
@@ -248,6 +251,10 @@ class SettingsDialog(SettingsPanel):
         # Translators: Label for blacklisted applications edit box
         self.applicationsBlacklistEdit = sHelper.addLabeledControl(_("Disable WordNav in applications (comma-separated list)"), wx.TextCtrl)
         self.applicationsBlacklistEdit.Value = getConfig("applicationsBlacklist")
+      # checkbox Disable in Google Docs
+        label = _("Disable in Google Docs")
+        self.DisableInGoogleDocsCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
+        self.DisableInGoogleDocsCheckbox.Value = getConfig("disableInGoogleDocs")
 
     def onSave(self):
         try:
@@ -268,6 +275,7 @@ class SettingsDialog(SettingsPanel):
         setConfig("wordCount", int(self.wordCountEdit.Value))
         setConfig("paragraphChimeVolume", self.paragraphChimeVolumeSlider.Value)
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
+        setConfig("disableInGoogleDocs", self.DisableInGoogleDocsCheckbox.Value)
 
 
 
@@ -486,6 +494,43 @@ def isBlacklistedApp(self):
         return True
     return False
 
+
+def getUrl(obj):
+    if not isinstance(obj, IAccessible):
+        return None
+    url = None
+    o = obj
+    while o is not None:
+        try:
+            tag = o.IA2Attributes["tag"]
+        except AttributeError:
+            break
+        except KeyError:
+            o = o.simpleParent
+            continue
+        if tag in [
+            "#document", # for Chrome
+            "body", # For Firefox
+        ]:
+            thisUrl = o.IAccessibleObject.accValue(o.IAccessibleChildID)
+            if thisUrl is not None and thisUrl.startswith("http"):
+                url = thisUrl
+        o = o.simpleParent
+    return url
+
+urlCache = weakref.WeakKeyDictionary()
+def getUrlCached(interceptor, obj):
+    try:
+        result = urlCache[interceptor]
+        if result is not None:
+            return result
+    except KeyError:
+        pass
+    url = getUrl(obj)
+    if url is not None and url.startswith("http"):
+        urlCache[interceptor] = url
+    return url
+
 def getModifiers(gesture):
     control = None
     windows = False
@@ -510,13 +555,38 @@ def getModifiers(gesture):
         result += "Windows"
     return result
 
+
+def isGoogleDocs(obj):
+    role = obj.role
+    if role != controlTypes.Role.EDITABLETEXT:
+        return False
+    interceptor = obj.treeInterceptor
+    if interceptor is None:
+        return False
+    url = getUrlCached(interceptor, obj)
+    if url is None:
+        return False
+    if not url.startswith("https://docs.google.com/document/"):
+        return False
+    return True
+
 def script_caret_moveByWordWordNav(self,gesture):
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
-    blacklisted = isBlacklistedApp(self)
-    if blacklisted:
+    isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    obj = self.rootNVDAObject if isBrowseMode else self
+    blacklisted = isBlacklistedApp(obj)
+    gd = isGoogleDocs(obj)
+    disableGd = gd if getConfig("disableInGoogleDocs") else False
+    if blacklisted or disableGd:
         if 'Windows' not in mods:
-            return editableText.EditableText.script_caret_moveByWord(self, gesture)
+            if isBrowseMode:
+                if key == "rightArrow":
+                    return cursorManager.CursorManager.script_moveByWord_forward(self, gesture)
+                else:
+                    return cursorManager.CursorManager.script_moveByWord_back(self, gesture)
+            else:
+                return editableText.EditableText.script_caret_moveByWord(self, gesture)
         else:
             gesture.send()
         return
@@ -672,6 +742,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             m.start()
             for m in pattern.finditer(text)
         ]
+        # dedupe:
+        stops = sorted(list(set(stops)))
         #while len(stops) > 0:
         while True:
             mylog(f"wt {stops=}")
@@ -728,6 +800,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
+                # Google Chrome needs to be told twice
+                newCaretInfo.updateCaret()
                 speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                 if crossedParagraph:
                     chimeCrossParagraphBorder()
@@ -745,8 +819,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     caretOffset = 10**10
                 # Now break out of inner while loop and iterate the outer loop one more time
                 break
-        #if len(stops) == 0:
-            #raise RuntimeError("Unexpected error: no valid word stops found within paragraph.")
 
 doWordMove.__doc = _("WordNav move by word")
 
@@ -767,6 +839,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         gui.settingsDialogs.NVDASettingsDialog.categoryClasses.remove(SettingsDialog)
 
     def injectHooks(self):
+      # EditableText
         editableText.EditableText.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
         editableText.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
@@ -774,14 +847,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav"
         behaviors.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
         behaviors.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
-        if False:
-            self.originalMoveBack = cursorManager.CursorManager.script_moveByWord_back
-            self.originalMoveForward = cursorManager.CursorManager.script_moveByWord_forward
-            cursorManager.CursorManager.script_moveByWord_back = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
-            cursorManager.CursorManager.script_moveByWord_forward = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWord(selfself, gesture, *args, **kwargs)
-            cursorManager.CursorManager.script_cursorMoveByWordEx = lambda selfself, gesture, *args, **kwargs: self.script_cursorMoveByWordEx(selfself, gesture, *args, **kwargs)
-            cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow"] = "cursorMoveByWordEx",
-            cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+RightArrow"] = "cursorMoveByWordEx",
+      # CursorManager
+        cursorManager.CursorManager.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
+        cursorManager.CursorManager._CursorManager__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
+        cursorManager.CursorManager._CursorManager__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav"
+
 
     def  removeHooks(self):
         pass
