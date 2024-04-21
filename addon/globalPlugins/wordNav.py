@@ -30,6 +30,8 @@ from logHandler import log
 import NVDAHelper
 from NVDAObjects import behaviors
 from NVDAObjects.window import winword
+from NVDAObjects.IAccessible.ia2TextMozilla import MozillaCompoundTextInfo 
+from NVDAObjects.window.scintilla import ScintillaTextInfo
 import nvwave
 import operator
 import os
@@ -395,6 +397,12 @@ def executeAsynchronously(gen):
     else:
         wx.CallLater(value, l)
 
+originalExecuteGesture = None
+globalGestureCounter = 0
+def preExecuteGesture(self, gesture):
+    global globalGestureCounter
+    globalGestureCounter += 1
+    return originalExecuteGesture(self, gesture)
 def makeVkInput(vkCodes):
     result = []
     if not isinstance(vkCodes, list):
@@ -423,6 +431,26 @@ controlModifiers = [
 ]
 kbdRight = keyboardHandler.KeyboardInputGesture.fromName("RightArrow")
 kbdLeft = keyboardHandler.KeyboardInputGesture.fromName("LeftArrow")
+
+def areModifiersReleased():
+    status = [
+        winUser.getKeyState(k) & 32768
+        for k in controlModifiers
+    ]
+    return not any(status)
+    
+def asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, localGestureCounter):
+    global globalGestureCounter
+    while not areModifiersReleased():
+        if localGestureCounter != globalGestureCounter:
+            return
+        yield 10
+    sequence = [kbdLeft, kbdRight]
+    if doRight:
+        sequence = sequence[::-1]
+    for keystroke in sequence:
+        keystroke.send()
+
 def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionInfo, offset):
     global releaserCounter, cachedTextInfo, cachedOffset, cachedCollapseDirection, suppressSelectionMessages
     while True:
@@ -714,6 +742,7 @@ def _moveToNextParagraph(
 class MoveToCodePointOffsetError(Exception):
     pass
 
+
 def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
@@ -800,8 +829,13 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
-                # Google Chrome needs to be told twice
-                newCaretInfo.updateCaret()
+                if True:#isinstance(newCaretInfo, MozillaCompoundTextInfo):
+                    # Google Chrome needs to be told twice
+                    newCaretInfo.updateCaret()
+                if isinstance(newCaretInfo, ScintillaTextInfo):
+                    # Notepad++ doesn't remember cursor position when updated from here and then navigating by line up or down
+                    # This hack makes it remember new position
+                    executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(True, globalGestureCounter))
                 speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                 if crossedParagraph:
                     chimeCrossParagraphBorder()
@@ -853,6 +887,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         cursorManager.CursorManager._CursorManager__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow"] = "caret_moveByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav"
+      # inputManager.executeGesture
+        global originalExecuteGesture
+        originalExecuteGesture = inputCore.InputManager.executeGesture
+        inputCore.InputManager.executeGesture = preExecuteGesture
+
 
 
     def  removeHooks(self):
