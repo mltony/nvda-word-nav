@@ -605,51 +605,6 @@ def isVscodeApp(self):
     except NameError:
         return False
     return self.appModule.productName.startswith("Visual Studio Code")
-    
-
-#vscodeMainEditorCache = {}
-def old___isVSCodeMainEditor(obj):
-    def preprocessNewLines(s):
-        return s.replace("\r\n", "\n").replace("\r", "\n")
-
-    # assuming obj is focused
-    global vscodeMainEditorCache
-    ia2id = obj.IA2UniqueID
-    try:
-        return vscodeMainEditorCache[IA2UniqueID]
-    except KeyError:
-        pass
-    try:
-        allTextInfo = obj.makeEnhancedTextInfo(textInfos.POSITION_ALL)
-    except AttributeError:
-        errorMsg = _(
-            "Error: in order for word navigation to work correctly in VSCode, please install the following:\n"
-            "1. NVDA add-on IndentNav version v2.0 or later\n"
-            "2. VSCode extension: Accessibility for NVDA IndentNav\n"
-            "Please consult documentation for more information."
-        )
-        gui.messageBox(errorMsg, _("Regular expression error"), wx.OK|wx.ICON_WARNING, self)
-        return None
-    if allTextInfo is None:
-        errorMsg = _(
-            "Error: in order for word navigation to work correctly in VSCode, please install the following:\n"
-            "1. NVDA add-on IndentNav version v2.0 or later\n"
-            "2. VSCode extension: Accessibility for NVDA IndentNav\n"
-            "IndentNav add-on has been detected; but VSCode extension does not appear to be running.\n"
-            "Please consult documentation for more information."
-        )
-        gui.messageBox(errorMsg, _("Regular expression error"), wx.OK|wx.ICON_WARNING, self)
-        return None
-    allText = allTextInfo.text
-    ia2text = obj.makeTextInfo(textInfos.POSITION_ALL)
-    allText = preprocessNewLines(allText)
-    ia2text = preprocessNewLines(ia2text)
-    if len(ia2text) < 10:
-        return False # but do not cache it
-    result = preprocessNewLines(ia2text) in preprocessNewLines(allText)
-    vscodeMainEditorCache[ia2id] = result
-
-    return result
 
 def isVSCodeMainEditor(obj):
     if obj.role != controlTypes.Role.EDITABLETEXT:
@@ -938,8 +893,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                         raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
                     del stops[newWordIndex + wordCount]
                     continue # inner loop
-                api.a = newCaretInfo.copy()
-                api.b = wordEndInfo.copy()
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
