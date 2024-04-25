@@ -598,6 +598,106 @@ def isGoogleDocs(obj):
         return False
     return True
 
+def isVscodeApp(self):
+    try:
+        if self.treeInterceptor is not None:
+            return False
+    except NameError:
+        return False
+    return self.appModule.productName.startswith("Visual Studio Code")
+    
+
+#vscodeMainEditorCache = {}
+def old___isVSCodeMainEditor(obj):
+    def preprocessNewLines(s):
+        return s.replace("\r\n", "\n").replace("\r", "\n")
+
+    # assuming obj is focused
+    global vscodeMainEditorCache
+    ia2id = obj.IA2UniqueID
+    try:
+        return vscodeMainEditorCache[IA2UniqueID]
+    except KeyError:
+        pass
+    try:
+        allTextInfo = obj.makeEnhancedTextInfo(textInfos.POSITION_ALL)
+    except AttributeError:
+        errorMsg = _(
+            "Error: in order for word navigation to work correctly in VSCode, please install the following:\n"
+            "1. NVDA add-on IndentNav version v2.0 or later\n"
+            "2. VSCode extension: Accessibility for NVDA IndentNav\n"
+            "Please consult documentation for more information."
+        )
+        gui.messageBox(errorMsg, _("Regular expression error"), wx.OK|wx.ICON_WARNING, self)
+        return None
+    if allTextInfo is None:
+        errorMsg = _(
+            "Error: in order for word navigation to work correctly in VSCode, please install the following:\n"
+            "1. NVDA add-on IndentNav version v2.0 or later\n"
+            "2. VSCode extension: Accessibility for NVDA IndentNav\n"
+            "IndentNav add-on has been detected; but VSCode extension does not appear to be running.\n"
+            "Please consult documentation for more information."
+        )
+        gui.messageBox(errorMsg, _("Regular expression error"), wx.OK|wx.ICON_WARNING, self)
+        return None
+    allText = allTextInfo.text
+    ia2text = obj.makeTextInfo(textInfos.POSITION_ALL)
+    allText = preprocessNewLines(allText)
+    ia2text = preprocessNewLines(ia2text)
+    if len(ia2text) < 10:
+        return False # but do not cache it
+    result = preprocessNewLines(ia2text) in preprocessNewLines(allText)
+    vscodeMainEditorCache[ia2id] = result
+
+    return result
+
+def isVSCodeMainEditor(obj):
+    if obj.role != controlTypes.Role.EDITABLETEXT:
+        return False
+    def findLandmark(obj):
+        simpleParent = obj.simpleParent
+        if simpleParent.role == controlTypes.Role.LANDMARK:
+            return simpleParent
+        while True:
+            obj = obj.parent
+            if obj is None:
+                return None
+            if obj.role == controlTypes.Role.LANDMARK:
+                return obj
+
+    landmark = findLandmark(obj)
+    if landmark is None:
+        return False
+    try:
+        return landmark.IA2Attributes['id'] == 'workbench.parts.editor'
+    except (KeyError, AttributeError):
+        return False
+
+def makeVSCodeTextInfo(obj, position):
+    try:
+        textInfo = obj.makeEnhancedTextInfo(position)
+    except AttributeError:
+        errorMsg = _(
+            "Error: in order for word navigation to work correctly in VSCode, please install the following:\n"
+            "1. NVDA add-on IndentNav version v2.0 or later.\n"
+            "2. VSCode extension: Accessibility for NVDA IndentNav.\n"
+            "Please consult WordNav Readme file for more information."
+        )
+        wx.CallAfter(gui.messageBox, errorMsg, _("WordNav error"), wx.OK|wx.ICON_WARNING)
+        return None
+    if textInfo is None:
+        errorMsg = _(
+            "Error: in order for word navigation to work correctly in VSCode, please install the following:\n"
+            "1. NVDA add-on IndentNav version v2.0 or later.\n"
+            "2. VSCode extension: Accessibility for NVDA IndentNav.\n"
+            "IndentNav add-on has been detected; but VSCode extension does not appear to be running..\n"
+            "Please consultf WordNav Readme file for more information."
+        )
+        wx.CallAfter(gui.messageBox, errorMsg, _("WordNav error"), wx.OK|wx.ICON_WARNING)
+        return None
+    return textInfo
+
+
 def script_caret_moveByWordWordNav(self,gesture):
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
@@ -606,7 +706,15 @@ def script_caret_moveByWordWordNav(self,gesture):
     blacklisted = isBlacklistedApp(obj)
     gd = isGoogleDocs(obj)
     disableGd = gd if getConfig("disableInGoogleDocs") else False
-    if blacklisted or disableGd:
+    if not isBrowseMode:
+        isVSCode = isVscodeApp(obj)
+        if isVSCode:
+            isVSCodeMain = isVSCodeMainEditor(obj)
+    if (
+        blacklisted
+        or disableGd
+        or (isVSCode and not isVSCodeMain)
+    ):
         if 'Windows' not in mods:
             if isBrowseMode:
                 if key == "rightArrow":
@@ -621,7 +729,13 @@ def script_caret_moveByWordWordNav(self,gesture):
     option = f"{mods}AssignmentIndex"
     pattern, wordCount = getRegexByFunction(getConfig(option))
     direction = 1 if "rightArrow" in key else -1
-    caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
+    if isVSCode:
+        caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
+        if caretInfo is None:
+            chimeNoNextWord()
+            return
+    else:
+        caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
     doWordMove(caretInfo, pattern, direction, wordCount)
 
 
@@ -829,7 +943,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
-                if True:#isinstance(newCaretInfo, MozillaCompoundTextInfo):
+                if isinstance(newCaretInfo, MozillaCompoundTextInfo):
                     # Google Chrome needs to be told twice
                     newCaretInfo.updateCaret()
                 if isinstance(newCaretInfo, ScintillaTextInfo):
