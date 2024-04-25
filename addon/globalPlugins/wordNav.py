@@ -921,7 +921,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 # Now break out of inner while loop and iterate the outer loop one more time
                 break
 
-doWordMove.__doc = _("WordNav move by word")
+doWordMove.__doc__ = _("WordNav move by word")
+doWordMove.category = _("WordNav")
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = _("WordNav")
