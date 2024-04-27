@@ -16,6 +16,7 @@ import ctypes
 from ctypes import create_string_buffer, byref
 import cursorManager
 import documentBase
+import eventHandler
 import functools
 import editableText
 import globalPluginHandler
@@ -36,7 +37,7 @@ import nvwave
 import operator
 import os
 import re
-from scriptHandler import script, willSayAllResume
+from scriptHandler import script, willSayAllResume, isScriptWaiting
 import speech
 import struct
 import textInfos
@@ -54,6 +55,9 @@ from appModules.devenv import VsWpfTextViewTextInfo
 from NVDAObjects import behaviors
 import weakref
 from NVDAObjects.IAccessible import IAccessible
+from NVDAObjects.window.edit import ITextDocumentTextInfo
+from NVDAObjects.window.scintilla import ScintillaTextInfo
+from textInfos.offsets import OffsetsTextInfo
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -84,6 +88,7 @@ def myAssert(condition):
     if not condition:
         raise RuntimeError("Assertion failed")
 
+INFINITY = 10**10
 module = "wordNav"
 def initConfiguration():
     defaultBulkyRegexp = r'$|(^|(?<=[\s\(\)]))[^\s\(\)]|\b(:\d+)+\b'
@@ -115,13 +120,30 @@ initConfiguration()
 
 
 # Regular expression for the beginning of a word. Matches:
-# 1. Empty string
+# 1. Empty string consisting of spaces or tabs but without any newline characters
+wrEmpty = r"^(?=((?!\r|\n)\s)*$)"
 # 2. Newline \r or \n characters
-# 3. Beginning of any word: \b\w
+wrNewline = r"[\r\n]+"
+# 3. Beginning of any word
+wrWord = r"\b\w"
 # 4. Punctuation mark preceded by non-punctuation mark: (?<=[\w\s])[^\w\s]
+wrPunc = r"(?<=[\w\s])[^\w\s]"
 # 5. Punctuation mark preceded by beginning of the string
-wordReString = r'^(?=\s*$)|[\r\n]+|\b\w|(?<=[\w\s])[^\w\s]|^[^\w\s]'
+wrPunc2 = r"^[^\w\s]"
+wordReString = f"{wrEmpty}|{wrNewline}|{wrWord}|{wrPunc}|{wrPunc2}"
 wordRe = re.compile(wordReString)
+
+# word end regex - tweaking some clauses of word start regex
+# 3. End of word
+wrWordEnd = r"(?<=\w)\b"
+# 4. non-Punctuation mark preceded by punctuation mark
+wrPuncEnd = r"(?<=[^\w\s])[\w\s]"
+# 5. End of string preceded by Punctuation mark
+wrPunc2End = r"(?<=[^\w\s])$"
+
+wordEndReString = f"{wrEmpty}|{wrNewline}|{wrWordEnd}|{wrPuncEnd}|{wrPunc2End}"
+wordEndRe = re.compile(wordEndReString)
+
 
 # Regular expression for beginning of fine word. This word definition breaks
 # camelCaseIdentifiers  and underscore_separated_identifiers into separate sections for easier editing.
@@ -170,17 +192,17 @@ controlWindowsFunctions = "0bf0000fbfb"
 
 def getRegexByFunction(index):
     if index == 1:
-        return wordRe,1
+        return wordRe, wordEndRe, 1
     elif index == 2:
-        return generateWordReBulky(),1
+        return generateWordReBulky(), wordEndRe, 1
     elif index == 3:
-        return wordReFine,1
+        return wordReFine, wordEndRe, 1
     elif index == 4:
-        return generateWordReBulky(), getConfig("wordCount")
+        return generateWordReBulky(), None, getConfig("wordCount")
     elif index == 5:
-        return generateWordReCustom(), 1
+        return generateWordReCustom(), None, 1
     else:
-        return None, None
+        return None, None, None
 
 class SettingsDialog(SettingsPanel):
     # Translators: Title for the settings dialog
@@ -665,8 +687,13 @@ def script_caret_moveByWordWordNav(self,gesture):
         isVSCode = isVscodeApp(obj)
         if isVSCode:
             isVSCodeMain = isVSCodeMainEditor(obj)
+    else:
+        isVSCode = False
+    option = f"{mods}AssignmentIndex"
+    pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
     if (
-        blacklisted
+        pattern is None
+        or blacklisted
         or disableGd
         or (isVSCode and not isVSCodeMain)
     ):
@@ -681,8 +708,6 @@ def script_caret_moveByWordWordNav(self,gesture):
         else:
             gesture.send()
         return
-    option = f"{mods}AssignmentIndex"
-    pattern, wordCount = getRegexByFunction(getConfig(option))
     direction = 1 if "rightArrow" in key else -1
     if isVSCode:
         caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
@@ -694,73 +719,6 @@ def script_caret_moveByWordWordNav(self,gesture):
     doWordMove(caretInfo, pattern, direction, wordCount)
 
 
-@dataclass
-class WordDefinition:
-    name: str
-    wordStart: re.Pattern
-    wordEnd: re.Pattern
-
-class ContextParagraph:
-    textInfo: textInfos.TextInfo
-    text: str
-    length: int
-    caretOffset: int = None
-    anchorOffset: int = None
-    stops: list[int] = None
-    
-    def mark(
-        beginPattern,
-        endPattern=None,
-        anchorLocation=None
-    ):
-        beginStops = [
-            m.start()
-            for m in beginPattern.finditer(self.text)
-        ]
-        if endPattern is None: 
-            self.stops = beginStops
-            return
-        if anchorLocation is None:
-            raise RuntimeError
-        endStops = [
-            m.start()
-            for m in endPattern.finditer(self.text)
-        ]
-        if anchorLocation > 0:
-            self.stops = beginStops
-        elif anchorLocation < 0:
-            self.stops = endStops
-        else:
-            if self.anchorOffset is None:
-                raise RuntimeError("Expected to have anchor in current paragraph")
-            allStops = [
-                x
-                for x in beginStops
-                if x <= self.anchorOffset
-            ] + [
-                x
-                for x in endStops
-                if x >= self.anchorOffset
-            ]
-            # dedupe
-            self.stops = sorted(list(set(stops)))
-            
-
-    
-
-    def __init__(
-            self,
-            textInfo: textInfos.TextInfo,
-    ):
-        self.textInfo = textInfo
-        self.text = textInfo.text
-        self.pythonicLen = len(self.text)
-
-
-@dataclass
-class IndexAndOffset:
-    paragraphIndex: int
-    offset: int
 
 beeper = Beeper()
 def chimeCrossParagraphBorder():
@@ -917,12 +875,192 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 if direction > 0:
                     caretOffset = -1
                 else:
-                    caretOffset = 10**10
+                    caretOffset = INFINITY
                 # Now break out of inner while loop and iterate the outer loop one more time
                 break
 
 doWordMove.__doc__ = _("WordNav move by word")
 doWordMove.category = _("WordNav")
+
+def updateSelection(anchorInfo, newCaretInfo):
+    """
+        There is no good unified way in NVDA to set selection preserving anchor location.
+        Some implementations always put caret in the front, others always put caret in the back.
+        We neeed to do it dynamically, depending on whether the user selects back or forward.
+        It's possible in most implementations; however it appears to be impossible in UIA due to API limitation.
+        Here be dragons.
+    """
+    if type(newCaretInfo).__name__ == 'VSCodeTextInfo':
+        return newCaretInfo.piper.setSelectionOffsets(anchorInfo._startOffset, newCaretInfo._endOffset)
+    elif isinstance(newCaretInfo, ITextDocumentTextInfo):
+        # This textInfo is used in many plain editables. Examples include:
+        # NVDA Log Viewer
+        # Windows+R run dialog
+        import comInterfaces.tom
+        #newCaretInfo.obj.ITextSelectionObject.MoveRight(comInterfaces.tom.tomCharacter, 1, comInterfaces.tom.tomExtend)
+        caretOffset = newCaretInfo._rangeObj.start
+        anchorOffset = anchorInfo._rangeObj.start
+        newCaretInfo.obj.ITextSelectionObject.SetRange(anchorOffset, caretOffset)
+    elif isinstance(newCaretInfo, ScintillaTextInfo):
+        tones.beep(500, 50)
+    elif isinstance(newCaretInfo, ScintillaTextInfo):
+        tones.beep(500, 50)
+    else:
+        raise RuntimeError(f"Don't know how to set selection for textInfo of type {type(newCaretInfo).__name__}")
+
+def script_selectByWordWordNav(self,gesture):
+    mods = getModifiers(gesture)
+    key = gesture.mainKeyName
+    isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    obj = self.rootNVDAObject if isBrowseMode else self
+    blacklisted = isBlacklistedApp(obj)
+    gd = isGoogleDocs(obj)
+    disableGd = gd if getConfig("disableInGoogleDocs") else False
+    if not isBrowseMode:
+        isVSCode = isVscodeApp(obj)
+        if isVSCode:
+            isVSCodeMain = isVSCodeMainEditor(obj)
+    option = f"{mods}AssignmentIndex"
+    pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
+    if (
+        pattern is None
+        or blacklisted
+        or disableGd
+        or (isVSCode and not isVSCodeMain)
+    ):
+        if 'Windows' not in mods:
+            if isBrowseMode:
+                if key == "rightArrow":
+                    return cursorManager.CursorManager.script_moveByWord_forward(self, gesture)
+                else:
+                    return cursorManager.CursorManager.script_moveByWord_back(self, gesture)
+            else:
+                return editableText.EditableText.script_caret_changeSelection(self, gesture)
+        else:
+            gesture.send()
+        return
+    direction = 1 if "rightArrow" in key else -1
+    if isVSCode:
+        caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
+        if caretInfo is None:
+            chimeNoNextWord()
+            return
+        selectionInfo = makeVSCodeTextInfo(self, textInfos.POSITION_SELECTION)
+        oldInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
+    else:
+        caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
+        selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
+        oldInfo = selectionInfo.copy()
+    if not caretInfo.isCollapsed:
+        raise RuntimeError("Caret must be collapsed")
+    anchorInfo = selectionInfo.copy()
+    if selectionInfo.compareEndPoints(caretInfo, 'startToStart') == 0:
+        anchorInfo.collapse(end=True)
+    elif selectionInfo.compareEndPoints(caretInfo, 'endToEnd') == 0:
+        anchorInfo.collapse(end=False)
+    else:
+        raise RuntimeError("Caretmust be at the beginning or at the end of selection")
+    doWordSelect(caretInfo, anchorInfo, pattern, patternEnd, direction, wordCount)
+    if isScriptWaiting() or eventHandler.isPendingEvents("gainFocus"):
+        return
+    try:
+        self.reportSelectionChange(oldInfo)
+    except:
+        return
+
+def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direction, wordCount=1):
+    paragraphUnit = getParagraphUnit(caretInfo)
+    if not caretInfo.isCollapsed:
+        raise RuntimeError("Caret must be collapsed")
+    if not anchorInfo.isCollapsed:
+        raise RuntimeError("anchor must be collapsed")
+    paragraphInfo = caretInfo.copy()
+    paragraphInfo.expand(paragraphUnit)
+    pretextInfo = paragraphInfo.copy()
+    pretextInfo.setEndPoint(caretInfo, 'endToEnd')
+    caretOffset = len(pretextInfo.text)
+    crossedParagraph = False
+    MAX_ATTEMPTS = 10
+    for attempt in range(MAX_ATTEMPTS):
+        # anchorDirection tells us where anchor lies compared to current textInfo - in current paragraph, or before or after
+        # anchorOffset represents offset within current paragraph, or some convenient fake values like -1 and 10**10 if it lies ouside of current paragraph.
+        if paragraphInfo.compareEndPoints(anchorInfo, 'startToStart') > 0:
+            anchorDirection = -1
+            anchorOffset = -1
+        elif paragraphInfo.compareEndPoints(anchorInfo, 'endToEnd') <= 0:
+            anchorDirection = 1
+            anchorOffset = INFINITY
+        else:
+            anchorDirection = 0
+            preAnchorInfo = anchorInfo.copy()
+            preAnchorInfo.setEndPoint(paragraphInfo, 'startToStart')
+            anchorOffset = len(preAnchorInfo.text)
+        text = paragraphInfo.text
+        mylog(f"attempt! {caretOffset=} n={len(text)} {text=}")
+        wordBeginStops = [
+            m.start()
+            for m in wordBeginPattern.finditer(text)
+        ]
+        wordEndStops = [
+            m.start()
+            for m in wordEndPattern.finditer(text)
+        ]
+        stops = [
+            x for x in wordBeginStops if x <= anchorOffset
+        ] + [
+            x for x in wordEndStops if x >= anchorOffset
+        ]
+        # dedupe:
+        stops = sorted(list(set(stops)))
+        while True:  # inner loop
+            mylog(f"wt {stops=}")
+            if direction > 0:
+                newWordIndex = bisect.bisect_right(stops, caretOffset)
+            else:
+                newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
+            mylog(f"{newWordIndex=}")
+            if 0 <= newWordIndex < len(stops):
+                # Next stop for selection found in current paragraph
+                # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
+                mylog(f"Same Para!")
+                if attempt == 0 and wordCount > 1:
+                    # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
+                    newWordIndex += (wordCount - 1) * direction
+                    newWordIndex = max(0, newWordIndex)
+                    newWordIndex = min(newWordIndex, len(stops) - 1)
+                newCaretOffset = stops[newWordIndex]
+                mylog(f"resultWordOffset: {newCaretOffset}")
+                try:
+                    newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset)
+                except MoveToCodePointOffsetError:
+                    # This happens in MSWord when trying to navigate over bulleted list item.
+                    mylog(f"Oops cannot move to word start offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
+                    del stops[newWordIndex]
+                    continue #inner loop
+                if newCaretInfo.compareEndPoints(caretInfo, "startToStart") == 0:
+                    if direction < 0:
+                        mylog(f"Oh no, caret didn't move at all when moving backward. offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
+                        # This happens in MSWord with UIA enabled when trying to move over a bulleted list item.
+                        del stops[newWordIndex]
+                        continue #inner loop
+                    else:
+                        # This has never been observed yet.
+                        raise RuntimeError(f"Cursor didn't move {direction=}")
+                return updateSelection(anchorInfo, newCaretInfo)
+            else:
+                # New stop found in the next paragraph!
+                mylog(f"Next Para!")
+                crossedParagraph = True
+                if not _moveToNextParagraph(paragraphInfo, direction):
+                    chimeNoNextWord()
+                    return
+                if direction > 0:
+                    caretOffset = -1
+                else:
+                    caretOffset = INFINITY
+                # Now break out of inner while loop and iterate the outer loop one more time
+                break
+
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = _("WordNav")
@@ -941,7 +1079,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         gui.settingsDialogs.NVDASettingsDialog.categoryClasses.remove(SettingsDialog)
 
     def injectHooks(self):
-      # EditableText
+      # EditableText movement
         editableText.EditableText.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
         editableText.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
@@ -949,6 +1087,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav"
         behaviors.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
         behaviors.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
+      # EditableText selection
+        editableText.EditableText.script_selectByWordWordNav = script_selectByWordWordNav
+        editableText.EditableText._EditableText__gestures["kb:control+leftArrow+shift"] = "selectByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+rightArrow+shift"] = "selectByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow+shift"] = "selectByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow+shift"] = "selectByWordWordNav"
       # CursorManager
         cursorManager.CursorManager.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
         cursorManager.CursorManager._CursorManager__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
