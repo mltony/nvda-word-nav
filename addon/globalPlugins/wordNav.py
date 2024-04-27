@@ -56,7 +56,6 @@ from NVDAObjects import behaviors
 import weakref
 from NVDAObjects.IAccessible import IAccessible
 from NVDAObjects.window.edit import ITextDocumentTextInfo
-from NVDAObjects.window.scintilla import ScintillaTextInfo
 from textInfos.offsets import OffsetsTextInfo
 
 try:
@@ -890,9 +889,9 @@ def updateSelection(anchorInfo, newCaretInfo):
         It's possible in most implementations; however it appears to be impossible in UIA due to API limitation.
         Here be dragons.
     """
-    if type(newCaretInfo).__name__ == 'VSCodeTextInfo':
-        return newCaretInfo.piper.setSelectionOffsets(anchorInfo._startOffset, newCaretInfo._endOffset)
-    elif isinstance(newCaretInfo, ITextDocumentTextInfo):
+    #if type(newCaretInfo).__name__ == 'VSCodeTextInfo':
+        #return newCaretInfo.piper.setSelectionOffsets(anchorInfo._startOffset, newCaretInfo._endOffset)
+    if isinstance(newCaretInfo, ITextDocumentTextInfo):
         # This textInfo is used in many plain editables. Examples include:
         # NVDA Log Viewer
         # Windows+R run dialog
@@ -901,10 +900,16 @@ def updateSelection(anchorInfo, newCaretInfo):
         caretOffset = newCaretInfo._rangeObj.start
         anchorOffset = anchorInfo._rangeObj.start
         newCaretInfo.obj.ITextSelectionObject.SetRange(anchorOffset, caretOffset)
-    elif isinstance(newCaretInfo, ScintillaTextInfo):
-        tones.beep(500, 50)
-    elif isinstance(newCaretInfo, ScintillaTextInfo):
-        tones.beep(500, 50)
+    elif isinstance(newCaretInfo, OffsetsTextInfo):
+        selectionInfo = newCaretInfo.copy()
+        caretAheadOfAnchor = newCaretInfo.compareEndPoints(anchorInfo, "startToStart") > 0
+        selectionInfo.setEndPoint(anchorInfo, "startToStart" if caretAheadOfAnchor else "endToEnd")
+        if not caretAheadOfAnchor:
+            # Hacking an invalid textInfo by swapping start and end
+            tmp = selectionInfo._startOffset
+            selectionInfo._startOffset = selectionInfo._endOffset
+            selectionInfo._endOffset = tmp
+        selectionInfo.updateSelection()
     else:
         raise RuntimeError(f"Don't know how to set selection for textInfo of type {type(newCaretInfo).__name__}")
 
