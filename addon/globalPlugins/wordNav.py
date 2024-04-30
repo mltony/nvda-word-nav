@@ -57,6 +57,8 @@ import weakref
 from NVDAObjects.IAccessible import IAccessible
 from NVDAObjects.window.edit import ITextDocumentTextInfo
 from textInfos.offsets import OffsetsTextInfo
+from NVDAObjects.window.scintilla import ScintillaTextInfo
+from NVDAObjects.window.scintilla import Scintilla
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -889,8 +891,6 @@ def updateSelection(anchorInfo, newCaretInfo):
         It's possible in most implementations; however it appears to be impossible in UIA due to API limitation.
         Here be dragons.
     """
-    #if type(newCaretInfo).__name__ == 'VSCodeTextInfo':
-        #return newCaretInfo.piper.setSelectionOffsets(anchorInfo._startOffset, newCaretInfo._endOffset)
     if isinstance(newCaretInfo, ITextDocumentTextInfo):
         # This textInfo is used in many plain editables. Examples include:
         # NVDA Log Viewer
@@ -913,10 +913,31 @@ def updateSelection(anchorInfo, newCaretInfo):
     else:
         raise RuntimeError(f"Don't know how to set selection for textInfo of type {type(newCaretInfo).__name__}")
 
+# This function was copied from EditableTextWithoutAutoSelectDetection.reportSelectionChange()
+def reportSelectionChange(self, oldTextInfo):
+	api.processPendingEvents(processEventQueue=False)
+	newInfo=self.makeTextInfo(textInfos.POSITION_SELECTION)
+	self._updateSelectionAnchor(oldTextInfo,newInfo)
+	speech.speakSelectionChange(oldTextInfo,newInfo)
+	braille.handler.handleCaretMove(self)
+
+def restoreAutoDetectSelection(counter, timeoutMs, obj):
+    global globalSelectByWordCounter
+    yield timeoutMs
+    if globalSelectByWordCounter != counter:
+        return
+    obj._autoSelectDetectionEnabled = True
+    obj._autoSelectDetectionTemporarilyDisabled = False
+
+
+globalSelectByWordCounter = 0
 def script_selectByWordWordNav(self,gesture):
+    global globalSelectByWordCounter
+    globalSelectByWordCounter += 1
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
     isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    isNpp = isinstance(self, Scintilla)
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
     gd = isGoogleDocs(obj)
@@ -968,9 +989,19 @@ def script_selectByWordWordNav(self,gesture):
     doWordSelect(caretInfo, anchorInfo, pattern, patternEnd, direction, wordCount)
     if isScriptWaiting() or eventHandler.isPendingEvents("gainFocus"):
         return
+    if isNpp:
+        # For some reason NPP bounceback messages regarding selection updates come in delayed.
+        # Overriding this behavior and speaking updates manually.
+        if self._autoSelectDetectionEnabled or getattr(self, '_autoSelectDetectionTemporarilyDisabled', False):
+            self._autoSelectDetectionEnabled = False
+            self._autoSelectDetectionTemporarilyDisabled = True
+            executeAsynchronously(restoreAutoDetectSelection(globalSelectByWordCounter, 500, self))
+            self._lastSelectionPos = self.makeTextInfo(textInfos.POSITION_SELECTION)
+        reportSelectionChange(self, oldInfo)
     try:
         self.reportSelectionChange(oldInfo)
-    except:
+    except Exception:
+        #log.exception("badaboom")
         return
 
 def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direction, wordCount=1):
@@ -1446,3 +1477,31 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             self.beeper.fancyBeep('HF', 100, left=25, right=25)
         except NotImplementedError as e:
             return onError(e)
+
+    @script(description="Debug", gestures=['kb:windows+z'])
+    def script_debug(self, gesture):
+        import NVDAObjects.IAccessible, IAccessibleHandler
+        focus = api.getFocusObject()
+        ia2 = NVDAObjects.IAccessible.getNVDAObjectFromEvent(focus.windowHandle, winUser.OBJID_CLIENT, 0)
+        editor = IAccessibleHandler.accFocus(ia2.IAccessibleObject)[0]
+        editorRole = editor.accRole(0)
+        core.callLater(1000, ui.message, f"editor role = {editorRole}")
+        from comInterfaces import IAccessible2Lib as IA2
+        editorText = editor.QueryInterface(IA2.IAccessibleText)
+        if False:
+            import NVDAObjects.IAccessible
+            focus = api.getFocusObject()
+            #caret = NVDAObjects.IAccessible.getNVDAObjectFromEvent(focus.windowHandle, winUser.OBJID_CARET, 0)
+            caret = NVDAObjects.IAccessible.getNVDAObjectFromEvent(focus.windowHandle, winUser.OBJID_CLIENT, 0)
+            import IAccessibleHandler
+            f = IAccessibleHandler.accFocus(caret.IAccessibleObject)
+            api.f = f
+            api.c = caret
+            #r = f[0].accRole()
+            #r = caret.IAccessibleObject.accRole()
+            r = caret.role
+            api.r = r
+            ui.message(f"r={r}")
+            #api.f[0].accRole(0)
+            from comInterfaces import IAccessible2Lib as IA2
+            api.f[0].QueryInterface(IA2.IAccessibleText)
