@@ -6,6 +6,7 @@
 import addonHandler
 import api
 import bisect
+import braille
 import browseMode
 import collections
 import config
@@ -32,6 +33,7 @@ import NVDAHelper
 from NVDAObjects import behaviors
 from NVDAObjects.window import winword
 from NVDAObjects.IAccessible.ia2TextMozilla import MozillaCompoundTextInfo 
+from compoundDocuments import CompoundTextInfo
 from NVDAObjects.window.scintilla import ScintillaTextInfo
 import nvwave
 import operator
@@ -891,6 +893,9 @@ def updateSelection(anchorInfo, newCaretInfo):
         It's possible in most implementations; however it appears to be impossible in UIA due to API limitation.
         Here be dragons.
     """
+    caretAheadOfAnchor = newCaretInfo.compareEndPoints(anchorInfo, "startToStart") < 0
+    spanInfo = anchorInfo.copy()
+    spanInfo.setEndPoint(newCaretInfo, 'startToStart' if caretAheadOfAnchor else 'endToEnd')
     if isinstance(newCaretInfo, ITextDocumentTextInfo):
         # This textInfo is used in many plain editables. Examples include:
         # NVDA Log Viewer
@@ -900,16 +905,36 @@ def updateSelection(anchorInfo, newCaretInfo):
         caretOffset = newCaretInfo._rangeObj.start
         anchorOffset = anchorInfo._rangeObj.start
         newCaretInfo.obj.ITextSelectionObject.SetRange(anchorOffset, caretOffset)
+    
+    elif isinstance(newCaretInfo, CompoundTextInfo):
+        api.b = caretAheadOfAnchor
+        api.t=spanInfo.copy()
+        api.c=newCaretInfo.copy()
+        api.a = anchorInfo.copy()
+        innerAnchor = anchorInfo._start.copy()
+        innerCaret = newCaretInfo._start.copy()
+        if caretAheadOfAnchor:
+            spanInfo._startObj.setFocus()
+            innerTmpCaret = spanInfo._end.copy()
+            innerTmpCaret.collapse(end=False)
+            innerTmpAnchor = spanInfo._start.copy()
+            innerTmpAnchor.collapse(end=True)
+        else:
+            spanInfo._endObj.setFocus()
+            innerTmpCaret = spanInfo._start.copy()
+            innerTmpCaret.collapse(end=True)
+            innerTmpAnchor = spanInfo._end.copy()
+            innerTmpAnchor.collapse(end=False)
+        updateSelection(innerAnchor, innerTmpCaret)
+        if spanInfo._start is not spanInfo._end:
+            updateSelection(innerTmpAnchor, innerCaret)
     elif isinstance(newCaretInfo, OffsetsTextInfo):
-        selectionInfo = newCaretInfo.copy()
-        caretAheadOfAnchor = newCaretInfo.compareEndPoints(anchorInfo, "startToStart") > 0
-        selectionInfo.setEndPoint(anchorInfo, "startToStart" if caretAheadOfAnchor else "endToEnd")
-        if not caretAheadOfAnchor:
+        if caretAheadOfAnchor:
             # Hacking an invalid textInfo by swapping start and end
-            tmp = selectionInfo._startOffset
-            selectionInfo._startOffset = selectionInfo._endOffset
-            selectionInfo._endOffset = tmp
-        selectionInfo.updateSelection()
+            tmp = spanInfo._startOffset
+            spanInfo._startOffset = spanInfo._endOffset
+            spanInfo._endOffset = tmp
+        spanInfo.updateSelection()
     else:
         raise RuntimeError(f"Don't know how to set selection for textInfo of type {type(newCaretInfo).__name__}")
 
