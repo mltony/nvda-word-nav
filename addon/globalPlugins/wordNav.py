@@ -61,6 +61,8 @@ from NVDAObjects.window.edit import ITextDocumentTextInfo
 from textInfos.offsets import OffsetsTextInfo
 from NVDAObjects.window.scintilla import ScintillaTextInfo
 from NVDAObjects.window.scintilla import Scintilla
+from NVDAObjects.UIA import UIATextInfo
+from NVDAObjects.window.edit import EditTextInfo
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -885,6 +887,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
 doWordMove.__doc__ = _("WordNav move by word")
 doWordMove.category = _("WordNav")
 
+globalCaretAheadOfAnchor = {}
 def updateSelection(anchorInfo, newCaretInfo):
     """
         There is no good unified way in NVDA to set selection preserving anchor location.
@@ -894,6 +897,8 @@ def updateSelection(anchorInfo, newCaretInfo):
         Here be dragons.
     """
     caretAheadOfAnchor = newCaretInfo.compareEndPoints(anchorInfo, "startToStart") < 0
+    hwnd = newCaretInfo._obj().windowHandle
+    globalCaretAheadOfAnchor[hwnd] = caretAheadOfAnchor
     spanInfo = anchorInfo.copy()
     spanInfo.setEndPoint(newCaretInfo, 'startToStart' if caretAheadOfAnchor else 'endToEnd')
     if isinstance(newCaretInfo, ITextDocumentTextInfo):
@@ -935,6 +940,10 @@ def updateSelection(anchorInfo, newCaretInfo):
             spanInfo._startOffset = spanInfo._endOffset
             spanInfo._endOffset = tmp
         spanInfo.updateSelection()
+    elif isinstance(newCaretInfo, UIATextInfo):
+        # UIA sucks and doesn't allow to set caret at the front of selection
+        # fakeCursor mode will kindof take care of that
+        spanInfo.updateSelection()
     else:
         raise RuntimeError(f"Don't know how to set selection for textInfo of type {type(newCaretInfo).__name__}")
 
@@ -954,6 +963,9 @@ def restoreAutoDetectSelection(counter, timeoutMs, obj):
     obj._autoSelectDetectionEnabled = True
     obj._autoSelectDetectionTemporarilyDisabled = False
 
+
+def isFakeCaretMode(caretInfo):
+    return isinstance(caretInfo, (UIATextInfo, EditTextInfo))
 
 globalSelectByWordCounter = 0
 def script_selectByWordWordNav(self,gesture):
@@ -990,7 +1002,7 @@ def script_selectByWordWordNav(self,gesture):
         else:
             gesture.send()
         return
-    direction = 1 if "rightArrow" in key else -1
+    direction = -1 if "leftArrow" in key else 1
     if isVSCode:
         caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
         if caretInfo is None:
@@ -1002,6 +1014,11 @@ def script_selectByWordWordNav(self,gesture):
         caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
         selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
         oldInfo = selectionInfo.copy()
+    fakeCaretMode = isFakeCaretMode(caretInfo)
+    if fakeCaretMode:
+        caretInfo = selectionInfo.copy()
+        hwnd = obj.windowHandle
+        caretInfo.collapse(end=not globalCaretAheadOfAnchor.get(hwnd, False))
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     anchorInfo = selectionInfo.copy()
@@ -1122,6 +1139,26 @@ def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direct
                 # Now break out of inner while loop and iterate the outer loop one more time
                 break
 
+def script_selectByCharacterWordNav(self,gesture):
+    selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
+    fakeCaretMode = isFakeCaretMode(selectionInfo)
+    if not fakeCaretMode:
+        try:
+            return self.script_caret_changeSelection(gesture)
+        except AttributeError:
+            return gesture.send()
+    key = gesture.mainKeyName
+    direction = -1 if "leftArrow" in key else 1
+    hwnd = self.windowHandle
+    caretAheadOfAnchor = globalCaretAheadOfAnchor.get(hwnd, False)
+    caretInfo = selectionInfo.copy()
+    caretInfo.collapse(end=not caretAheadOfAnchor)
+    anchorInfo = selectionInfo.copy()
+    anchorInfo.collapse(end=caretAheadOfAnchor)
+    result = caretInfo.move(textInfos.UNIT_CHARACTER, direction)
+    if result == 0:
+        return chimeNoNextWord()
+    updateSelection(anchorInfo, caretInfo)
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = _("WordNav")
@@ -1148,12 +1185,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow"] = "caret_moveByWordWordNav"
         behaviors.EditableText._EditableText__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
         behaviors.EditableText._EditableText__gestures["kb:control+rightArrow"] = "caret_moveByWordWordNav"
-      # EditableText selection
+      # EditableText word selection
         editableText.EditableText.script_selectByWordWordNav = script_selectByWordWordNav
         editableText.EditableText._EditableText__gestures["kb:control+leftArrow+shift"] = "selectByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+rightArrow+shift"] = "selectByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow+shift"] = "selectByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow+shift"] = "selectByWordWordNav"
+      # EditableText character selection
+        editableText.EditableText.script_selectByCharacterWordNav = script_selectByCharacterWordNav
+        editableText.EditableText._EditableText__gestures["kb:leftArrow+shift"] = "selectByCharacterWordNav"
+        editableText.EditableText._EditableText__gestures["kb:rightArrow+shift"] = "selectByCharacterWordNav"
       # CursorManager
         cursorManager.CursorManager.script_caret_moveByWordWordNav = script_caret_moveByWordWordNav
         cursorManager.CursorManager._CursorManager__gestures["kb:control+leftArrow"] = "caret_moveByWordWordNav"
