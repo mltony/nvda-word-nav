@@ -154,10 +154,16 @@ wordEndRe = re.compile(wordEndReString)
 # camelCaseIdentifiers  and underscore_separated_identifiers into separate sections for easier editing.
 # Includes all conditions for wordRe plus additionally:
 # 6. Word letter, that is not  underscore, preceded by underscore.
+wfrLine = r"(?<=_)(?!_)\w"
 # 7. Capital letter preceded by a lower-case letter.
-wordReFineString = wordReString + "|(?<=_)(?!_)\w|(?<=[a-z])[A-Z]"
-wordReFineString += r"|(?<=\d)[a-zA-Z]|(?<=[a-zA-Z])\d"
+wfrCap = r"(?<=[a-z])[A-Z]"
+# 8. Digit followed by alphabetic character
+wfrDigit = r"(?<=\d)[a-zA-Z]"
+#wfrDigit2 = r"(?<=[a-zA-Z])\d"
+wordReFineString = f"{wordReString}|{wfrLine}|{wfrCap}|{wfrDigit}"
 wordReFine = re.compile(wordReFineString)
+wordFineEndReString = f"{wordEndReString}|{wfrLine}|{wfrCap}|{wfrDigit}"
+wordFineEndRe = re.compile(wordFineEndReString)
 
 # Regular expression for bulky words. Treats any punctuation signs as part of word.
 # Matches either:
@@ -176,11 +182,18 @@ def generateWordReBulky(punctuation=None):
     if punctuation is None:
         punctuation = getConfig("bulkyWordPunctuation")
     punctuation = escapeRegex(punctuation)
-    space = f"\\s{punctuation}"
-    wordReBulkyString = f"(^|(?<=[{space}]))[^{space}]|[\r\n]+"
-    #wordReBulkyString = f"^(?=\s*$)|(^|(?<=[{space}]))[^{space}]|[\r\n]+"
+    #space = f"\\s{punctuation}"
+    #wordReBulkyString = f"(^|(?<=[{space}]))[^{space}]|[\r\n]+"
+    sw = r"(^|(?<=\s))\w"
+    ws = r"(?<=\w)(\s|$)"
+    sp = r"(^|(?<=\s))[%s]" % punctuation
+    ps = r"(?<=[%s])(\s|$)" % punctuation
+    pw = r"(?<=[%s])\w" % punctuation
+    wordReBulkyString = f"{wrEmpty}|{wrNewline}|{sw}|{sp}|{pw}"
     wordReBulky = re.compile(wordReBulkyString)
-    return wordReBulky
+    wordEndReBulkyString = f"{wrEmpty}|{wrNewline}|{ws}|{ps}|{pw}"
+    wordEndReBulky = re.compile(wordEndReBulkyString)
+    return wordReBulky, wordEndReBulky
 
 def generateWordReCustom():
     wordReBulkyString = getConfig("bulkyWordRegex")
@@ -199,9 +212,9 @@ def getRegexByFunction(index):
     if index == 1:
         return wordRe, wordEndRe, 1
     elif index == 2:
-        return generateWordReBulky(), wordEndRe, 1
+        return generateWordReBulky()+ (1,)
     elif index == 3:
-        return wordReFine, wordEndRe, 1
+        return wordReFine, wordFineEndRe, 1
     elif index == 4:
         return generateWordReBulky(), None, getConfig("wordCount")
     elif index == 5:
