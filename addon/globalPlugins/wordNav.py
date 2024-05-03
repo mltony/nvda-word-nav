@@ -100,12 +100,15 @@ def initConfiguration():
     confspec = {
         "overrideMoveByWord" : "boolean( default=True)",
         "enableInBrowseMode" : "boolean( default=True)",
+        "enableSelection" : "boolean( default=True)",
+        "selectTrailingSpace" : "boolean( default=False)",
         "leftControlAssignmentIndex": "integer( default=3, min=0, max=5)",
         "rightControlAssignmentIndex": "integer( default=1, min=0, max=5)",
         "leftControlWindowsAssignmentIndex": "integer( default=2, min=0, max=5)",
         "rightControlWindowsAssignmentIndex": "integer( default=4, min=0, max=5)",
         "bulkyWordPunctuation" : f"string( default='():')",
         "bulkyWordRegex" : f"string( default='{defaultBulkyRegexp}')",
+        "bulkyWordEndRegex" : f"string( default='')",
         "paragraphChimeVolume" : "integer( default=5, min=0, max=100)",
         "wordCount": "integer( default=5, min=1, max=1000)",
         "applicationsBlacklist" : f"string( default='')",
@@ -198,7 +201,12 @@ def generateWordReBulky(punctuation=None):
 def generateWordReCustom():
     wordReBulkyString = getConfig("bulkyWordRegex")
     wordReBulky = re.compile(wordReBulkyString)
-    return wordReBulky
+    wordEndReBulkyString = getConfig("bulkyWordEndRegex")
+    if len(wordEndReBulkyString) > 0:
+        wordEndReBulky = re.compile(wordEndReBulkyString)
+    else:
+        wordEndReBulky = wordReBulky
+    return wordReBulky, wordEndReBulky
 
 # These constants map command assignment combo box index to actual functions
 # w stands for navigate by word
@@ -218,7 +226,7 @@ def getRegexByFunction(index):
     elif index == 4:
         return generateWordReBulky(), None, getConfig("wordCount")
     elif index == 5:
-        return generateWordReCustom(), None, 1
+        return generateWordReCustom() + (1,)
     else:
         return None, None, None
 
@@ -249,6 +257,14 @@ class SettingsDialog(SettingsPanel):
         label = _("Enable WordNav in browse mode.")
         self.enableInBrowseModeCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
         self.enableInBrowseModeCheckbox.Value = getConfig("enableInBrowseMode")
+      # checkbox enableSelection
+        label = _("Enable WordNav word selection")
+        self.selectTrailingSpaceCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
+        self.selectTrailingSpaceCheckbox.Value = getConfig("enableSelection")
+      # checkbox select trailing space
+        label = _("Include trailing space when selecting words with control+shift+rightArrow")
+        self.enableSelectionCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
+        self.enableSelectionCheckbox.Value = getConfig("selectTrailingSpace")
       # left control assignment Combo box
         # Translators: Label for left control assignment combo box
         label = _("Left control behavior:")
@@ -275,10 +291,12 @@ class SettingsDialog(SettingsPanel):
         self.bulkyWordPunctuationEdit = sHelper.addLabeledControl(_("Bulky word separators:"), wx.TextCtrl)
         self.bulkyWordPunctuationEdit.Value = getConfig("bulkyWordPunctuation")
 
-      # bulkyWordPunctuation
-        # Translators: Label for bulkyWordPunctuation edit box
+      # Custom word regex
         self.customWordRegexEdit = sHelper.addLabeledControl(_("Custom word regular expression:"), wx.TextCtrl)
         self.customWordRegexEdit.Value = getConfig("bulkyWordRegex")
+      # Custom word end regex
+        self.customWordEndRegexEdit = sHelper.addLabeledControl(_("Optional Custom word end regular expression for word selection:"), wx.TextCtrl)
+        self.customWordEndRegexEdit.Value = getConfig("bulkyWordEndRegex")
       # MultiWord word count
         # Translators: Label for multiWord wordCount edit box
         self.wordCountEdit = sHelper.addLabeledControl(_("Word count for multiWord navigation:"), wx.TextCtrl)
@@ -308,12 +326,15 @@ class SettingsDialog(SettingsPanel):
             return
         setConfig("overrideMoveByWord", self.overrideMoveByWordCheckbox.Value)
         setConfig("enableInBrowseMode", self.enableInBrowseModeCheckbox.Value)
+        setConfig("enableSelection", self.enableSelectionCheckbox.Value)
+        setConfig("selectTrailingSpace", self.selectTrailingSpaceCheckbox.Value)
         setConfig("leftControlAssignmentIndex", self.leftControlAssignmentCombobox.Selection)
         setConfig("rightControlAssignmentIndex", self.rightControlAssignmentCombobox.Selection)
         setConfig("leftControlWindowsAssignmentIndex", self.leftControlWindowsAssignmentCombobox.Selection)
         setConfig("rightControlWindowsAssignmentIndex", self.rightControlWindowsAssignmentCombobox.Selection)
         setConfig("bulkyWordPunctuation", self.bulkyWordPunctuationEdit.Value)
         setConfig("bulkyWordRegex", self.customWordRegexEdit.Value)
+        setConfig("bulkyWordEndRegex", self.customWordEndRegexEdit.Value)
         setConfig("wordCount", int(self.wordCountEdit.Value))
         setConfig("paragraphChimeVolume", self.paragraphChimeVolumeSlider.Value)
         setConfig("applicationsBlacklist", self.applicationsBlacklistEdit.Value)
@@ -697,6 +718,7 @@ def script_caret_moveByWordWordNav(self,gesture):
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
     isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    isEnabled = getConfig("enableInBrowseMode" if isBrowseMode else "overrideMoveByWord")
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
     gd = isGoogleDocs(obj)
@@ -710,7 +732,8 @@ def script_caret_moveByWordWordNav(self,gesture):
     option = f"{mods}AssignmentIndex"
     pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
     if (
-        pattern is None
+        not isEnabled
+        or pattern is None
         or blacklisted
         or disableGd
         or (isVSCode and not isVSCodeMain)
@@ -996,6 +1019,7 @@ def script_selectByWordWordNav(self,gesture):
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
     isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    isEnabled = getConfig("enableSelection")
     isNpp = isinstance(self, Scintilla)
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
@@ -1010,7 +1034,8 @@ def script_selectByWordWordNav(self,gesture):
     option = f"{mods}AssignmentIndex"
     pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
     if (
-        pattern is None
+        not isEnabled
+        or pattern is None
         or blacklisted
         or disableGd
         or (isVSCode and not isVSCodeMain)
@@ -1022,11 +1047,18 @@ def script_selectByWordWordNav(self,gesture):
                 else:
                     return cursorManager.CursorManager.script_moveByWord_back(self, gesture)
             else:
-                return editableText.EditableText.script_caret_changeSelection(self, gesture)
-        else:
-            gesture.send()
+                try:
+                    return self.editableText.EditableText.script_caret_changeSelection(self, gesture)
+                except AttributeError:
+                    pass
+        gesture.send()
         return
     direction = -1 if "leftArrow" in key else 1
+    selectTrailingSpace = key not in ["leftArrow", "rightArrow"]
+    if getConfig("selectTrailingSpace"):
+        selectTrailingSpace = not selectTrailingSpace
+    if selectTrailingSpace:
+        patternEnd = pattern
     if isVSCode:
         caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
         if caretInfo is None:
@@ -1217,8 +1249,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         editableText.EditableText.script_selectByWordWordNav = script_selectByWordWordNav
         editableText.EditableText._EditableText__gestures["kb:control+leftArrow+shift"] = "selectByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+rightArrow+shift"] = "selectByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+numpad1+shift"] = "selectByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+Windows+leftArrow+shift"] = "selectByWordWordNav"
         editableText.EditableText._EditableText__gestures["kb:control+Windows+rightArrow+shift"] = "selectByWordWordNav"
+        editableText.EditableText._EditableText__gestures["kb:control+Windows+numpad1+shift"] = "selectByWordWordNav"
       # EditableText character selection
         editableText.EditableText.script_selectByCharacterWordNav = script_selectByCharacterWordNav
         editableText.EditableText._EditableText__gestures["kb:leftArrow+shift"] = "selectByCharacterWordNav"
@@ -1244,3 +1278,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def  removeHooks(self):
         pass
+        
+    @script(description='debug', gestures=['kb:windows+z'])
+    def script_debug(self, gesture):
+        foc = api.getFocusObject()
+        foc.IAccessibleTextObject.SetCaretOffset(2)
+        offset=foc.IAccessibleTextObject.caretOffset
+        ui.message(f"offset={offset}")
