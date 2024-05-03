@@ -71,7 +71,7 @@ except AttributeError:
 
 
 
-debug = True
+debug = False
 if debug:
     import threading
     LOG_FILE_NAME = "C:\\Users\\tony\\1.txt"
@@ -480,10 +480,6 @@ def makeVkInput(vkCodes):
     return result
 
 
-releaserCounter = 0
-cachedTextInfo = None
-cachedOffset = 0
-cachedCollapseDirection = None
 controlModifiers = [
     winUser.VK_LCONTROL, winUser.VK_RCONTROL,
     winUser.VK_LSHIFT, winUser.VK_RSHIFT,
@@ -512,69 +508,6 @@ def asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, localGestureCounter
     for keystroke in sequence:
         keystroke.send()
 
-def asyncPressRightArrowAfterControlIsReleased(localReleaserCounter, selectionInfo, offset):
-    global releaserCounter, cachedTextInfo, cachedOffset, cachedCollapseDirection, suppressSelectionMessages
-    while True:
-        if releaserCounter != localReleaserCounter:
-            return
-        status = [
-            winUser.getKeyState(k) & 32768
-            for k in controlModifiers
-        ]
-        if not any(status):
-            collapseDirection = cachedCollapseDirection
-            cachedTextInfo = None
-            cachedOffset = 0
-            cachedCollapseDirection = None
-            input = []
-            if collapseDirection is not None:
-                input += makeVkInput([winUser.VK_RIGHT if collapseDirection > 0 else winUser.VK_LEFT])
-            input += makeVkInput([winUser.VK_RIGHT if offset >= 0 else winUser.VK_LEFT]) * abs(offset)
-            with keyboardHandler.ignoreInjection():
-                winUser.SendInput(input)
-            return
-            if False:
-                # This old method with selecting pretext doesn't work as well
-              #Step 0. Don't announce Selected/unselected for a while.
-                suppressSelectionMessages= True
-              # Step 1: Select from start to new cursor
-                selectionInfo.updateSelection()
-              # Step 2. Clear selection to the right thus setting the caret in the right place.
-                if len(selectionInfo.text) > 0:
-                    # First wait until selection appears
-                    t0 = time.time()
-                    while True:
-                        if time.time() - t0 > 0.050:
-                            raise Exception("Timeout 50ms: Couldn't select pretext!")
-                        if selectionInfo._startObj.IAccessibleTextObject.nSelections  > 0:
-                            break
-                        yield 1
-
-                    # kbdRight.send()
-                    # The previous line causes a deadlock sometimes - also somehow it triggers NVDA internal response to this keystroke, so we need to fool NVDA.
-                    with keyboardHandler.ignoreInjection():
-                        winUser.SendInput(makeVkInput([winUser.VK_RIGHT]))
-                else:
-                    #kbdLeft.send()
-                    with keyboardHandler.ignoreInjection():
-                        winUser.SendInput(makeVkInput([winUser.VK_LEFT]))
-
-                yield 20
-              # Step 4. Now restore announcing selection messages and return
-                suppressSelectionMessages = False
-                return
-        yield 1
-
-
-
-#originalSpeakSelectionChange = None
-#suppressSelectionMessages = False
-if False:
-  def preSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs):
-    global suppressSelectionMessages
-    if suppressSelectionMessages:
-        return False
-    return originalSpeakSelectionChange(oldInfo, newInfo, *args, **kwargs)
 
 def isBlacklistedApp(self):
     focus = self
@@ -957,10 +890,6 @@ def updateSelection(anchorInfo, newCaretInfo):
         newCaretInfo.obj.ITextSelectionObject.SetRange(anchorOffset, caretOffset)
     
     elif isinstance(newCaretInfo, CompoundTextInfo):
-        api.b = caretAheadOfAnchor
-        api.t=spanInfo.copy()
-        api.c=newCaretInfo.copy()
-        api.a = anchorInfo.copy()
         innerAnchor = anchorInfo._start.copy()
         innerCaret = newCaretInfo._start.copy()
         if caretAheadOfAnchor:
@@ -1278,10 +1207,3 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def  removeHooks(self):
         pass
-        
-    @script(description='debug', gestures=['kb:windows+z'])
-    def script_debug(self, gesture):
-        foc = api.getFocusObject()
-        foc.IAccessibleTextObject.SetCaretOffset(2)
-        offset=foc.IAccessibleTextObject.caretOffset
-        ui.message(f"offset={offset}")
