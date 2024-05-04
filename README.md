@@ -29,6 +29,7 @@ Please note, however, that currently used accessibility APIs have multiple issue
 ## Notes
 
 - If you would like to use virtual desktops feature of Windows 10, please remember to disable Control+Windows+Arrows keyboard shortcuts either in WordNav Settings panel, or in NVDA Input gestures dialog.
+- Compatibility with VSCode requires NVDA add-on IndentNav v2.0 or later to be installed. Additionally, VSCode extension [Accessibility for NVDA IndentNav](https://marketplace.visualstudio.com/items?itemName=TonyMalykh.nvda-indent-nav-accessibility) must be installed in VSCode.
 
 ##  Downloads
 
