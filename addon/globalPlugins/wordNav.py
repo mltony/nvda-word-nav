@@ -224,7 +224,7 @@ def getRegexByFunction(index):
     elif index == 3:
         return wordReFine, wordFineEndRe, 1
     elif index == 4:
-        return generateWordReBulky(), None, getConfig("wordCount")
+        return generateWordReBulky() + (getConfig("wordCount"),)
     elif index == 5:
         return generateWordReCustom() + (1,)
     else:
@@ -259,12 +259,12 @@ class SettingsDialog(SettingsPanel):
         self.enableInBrowseModeCheckbox.Value = getConfig("enableInBrowseMode")
       # checkbox enableSelection
         label = _("Enable WordNav word selection")
-        self.selectTrailingSpaceCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
-        self.selectTrailingSpaceCheckbox.Value = getConfig("enableSelection")
+        self.enableSelectionCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
+        self.enableSelectionCheckbox.Value = getConfig("enableSelection")
       # checkbox select trailing space
         label = _("Include trailing space when selecting words with control+shift+rightArrow")
-        self.enableSelectionCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
-        self.enableSelectionCheckbox.Value = getConfig("selectTrailingSpace")
+        self.selectTrailingSpaceCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
+        self.selectTrailingSpaceCheckbox.Value = getConfig("selectTrailingSpace")
       # left control assignment Combo box
         # Translators: Label for left control assignment combo box
         label = _("Left control behavior:")
