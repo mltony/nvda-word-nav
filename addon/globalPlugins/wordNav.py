@@ -187,11 +187,12 @@ def generateWordReBulky(punctuation=None):
     punctuation = escapeRegex(punctuation)
     #space = f"\\s{punctuation}"
     #wordReBulkyString = f"(^|(?<=[{space}]))[^{space}]|[\r\n]+"
-    sw = r"(^|(?<=\s))\w"
-    ws = r"(?<=\w)(\s|$)"
+    w = f"[^\s%s]" % punctuation
+    sw = r"(^|(?<=\s))%s" % w
+    ws = r"(?<=%s)(\s|$)" % w
     sp = r"(^|(?<=\s))[%s]" % punctuation
     ps = r"(?<=[%s])(\s|$)" % punctuation
-    pw = r"(?<=[%s])\w" % punctuation
+    pw = r"(?<=[%s])%s" % (punctuation, w)
     wordReBulkyString = f"{wrEmpty}|{wrNewline}|{sw}|{sp}|{pw}"
     wordReBulky = re.compile(wordReBulkyString)
     wordEndReBulkyString = f"{wrEmpty}|{wrNewline}|{ws}|{ps}|{pw}"
