@@ -25,6 +25,7 @@ Please note, however, that currently used accessibility APIs have multiple issue
 * Basic single line Windows edit controls also don't allow to set the caret in front of selection, so the previous point also applies to them. This affects all single line edit boxes within NVDA.
 * IAccessible2 doesn't provide a way to set selection spanning across multiple paragraphs. There is no known workaround for this issue. This affects rich multiline edit boxes in Chrome and Firefox, such as compose email text area in GMail and compose email window in Thunderbird.
 * In notepad++ selection update messages come unreasonably slow. As a workaround, WordNav announces selection on NVDA side for word selection commands and silences late notifications for the following 0.5 seconds. As a result, if you press word selection command followed by another (e.g. character) selection command in quick succession, you might miss selection notification for the latter one if it came within 0.5 seconds from the last word selection command.
+* In multiline edit boxes supporting TOM interface NVDA incorrectly identifies cursor location when selection is present. This has been fixed in nvaccess/nvda#16455, which is scheduled to be included in NVDA v2024.2 release. Before that release word selection commands won't work correctly in TOM edit boxes, such as NVDA log viewer.
 
 ## Notes
 
