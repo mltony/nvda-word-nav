@@ -15,9 +15,13 @@ Gestures can be customized in WordNav settings panel.
 
 ## Word selection
 
-Word selection is supported starting with WordNav v2.0. Please note, however, that currently used accessibility APIs have multiple issues related to word selection. Please get yourself familiar with the following list of issues and workarounds:
+Word selection is supported starting with WordNav v2.0. Just add `shift` modifier to any word navigation gestures to select words. There is also one extra gesture for word selection:
 
-* UIA applications (e.g. Notepad, Visual Studio, Microsoft Word) don't support setting caret at the beginning of selection. In those  applications caret location is stored on WordNav side. As an adverse side effect, word navigation commands might not play well with line and paragraph selection commands (`shift+up/downArrow`, `control+shift+up/downArrow`) and results might be unpredictable. For convenience, character selection commands (`shift+left/rightArrow`) have also been updated to be compatible with word selection commands.
+* `control+shift+numpad1` and `control+windows+shift+numpad1` select word to the right similar to their `rightArrow` counterparts, but they also include trailing spaces into selection.
+
+Please note, however, that currently used accessibility APIs have multiple issues related to word selection. Please get yourself familiar with the following list of issues and workarounds:
+
+* UIA applications (e.g. Notepad, Visual Studio, Microsoft Word) don't support setting caret at the beginning of selection. In those  applications caret location is stored on WordNav side. As an adverse side effect, word navigation commands might not play well with line and paragraph selection commands (`shift+up/downArrow`, `control+shift+up/downArrow`) and results might be unpredictable. For convenience, character selection commands (`shift+left/rightArrow`) have been updated in WordNav for UIA applications and should work well.
 * Basic single line Windows edit controls also don't allow to set the caret in front of selection, so the previous point also applies to them. This affects all single line edit boxes within NVDA.
 * IAccessible2 doesn't provide a way to set selection spanning across multiple paragraphs. There is no known workaround for this issue. This affects rich multiline edit boxes in Chrome and Firefox, such as compose email text area in GMail and compose email window in Thunderbird.
 * In notepad++ selection update messages come unreasonably slow. As a workaround, WordNav announces selection on NVDA side for word selection commands and silences late notifications for the following 0.5 seconds. As a result, if you press word selection command followed by another (e.g. character) selection command in quick succession, you might miss selection notification for the latter one if it came within 0.5 seconds from the last word selection command.
