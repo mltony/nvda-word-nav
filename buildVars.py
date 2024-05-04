@@ -23,9 +23,9 @@ addon_info = {
 	"addon_summary": _("WordNav"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-	"addon_description": _("""Improved navigate by word commands."""),
+	"addon_description": _("""Improved navigate by word and word selection commands."""),
 	# version
-	"addon_version": "2.0",
+	"addon_version": "2.0dev",
 	# Author(s)
 	"addon_author": "Tony Malykh <anton.malykh@gmail.com>",
 	# URL for the add-on documentation support
