@@ -704,6 +704,15 @@ def getParagraphUnit(textInfo):
     # In Windows 11 Notepad, we should use UNIT_PARAGRAPH instead of UNIT_LINE in order to handle wrapped lines correctly
     return textInfos.UNIT_PARAGRAPH
 
+def _expandParagraph(info):
+    paragraphUnit = getParagraphUnit(info)
+    info.expand(paragraphUnit)
+    if isinstance(info, ITextDocumentTextInfo):
+        # Workaround for PoEdit. In PoEdit the last character of edit box is newline, but it's impossible to take textInfo there, so we need to exclude it.
+        collapsedInfo = info.copy()
+        collapsedInfo.collapse(end=True)
+        if collapsedInfo.compareEndPoints(info, "endToEnd") < 0:
+            info.setEndPoint(collapsedInfo, "endToEnd")
 
 def _moveToNextParagraph(
         paragraph: textInfos.TextInfo,
@@ -722,7 +731,7 @@ def _moveToNextParagraph(
         result = paragraph.move(textInfos.UNIT_CHARACTER, -1)
         if result == 0:
             return False
-    paragraph.expand(paragraphUnit)
+    _expandParagraph(paragraph)
     #if paragraph.isCollapsed:
         #return False
     if (
@@ -753,7 +762,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     paragraphInfo = caretInfo.copy()
-    paragraphInfo.expand(paragraphUnit)
+    _expandParagraph(paragraphInfo)
     pretextInfo = paragraphInfo.copy()
     pretextInfo.setEndPoint(caretInfo, 'endToEnd')
     caretOffset = len(pretextInfo.text)
@@ -917,11 +926,11 @@ def updateSelection(anchorInfo, newCaretInfo):
 
 # This function was copied from EditableTextWithoutAutoSelectDetection.reportSelectionChange()
 def reportSelectionChange(self, oldTextInfo):
-	api.processPendingEvents(processEventQueue=False)
-	newInfo=self.makeTextInfo(textInfos.POSITION_SELECTION)
-	self._updateSelectionAnchor(oldTextInfo,newInfo)
-	speech.speakSelectionChange(oldTextInfo,newInfo)
-	braille.handler.handleCaretMove(self)
+    api.processPendingEvents(processEventQueue=False)
+    newInfo=self.makeTextInfo(textInfos.POSITION_SELECTION)
+    self._updateSelectionAnchor(oldTextInfo,newInfo)
+    speech.speakSelectionChange(oldTextInfo,newInfo)
+    braille.handler.handleCaretMove(self)
 
 def restoreAutoDetectSelection(counter, timeoutMs, obj):
     global globalSelectByWordCounter
@@ -1036,7 +1045,7 @@ def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direct
     if not anchorInfo.isCollapsed:
         raise RuntimeError("anchor must be collapsed")
     paragraphInfo = caretInfo.copy()
-    paragraphInfo.expand(paragraphUnit)
+    _expandParagraph(paragraphInfo)
     pretextInfo = paragraphInfo.copy()
     pretextInfo.setEndPoint(caretInfo, 'endToEnd')
     caretOffset = len(pretextInfo.text)
