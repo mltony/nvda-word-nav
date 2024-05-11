@@ -1201,6 +1201,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         cursorManager.CursorManager._CursorManager__gestures["kb:control+rightArrow+shift"] = "selectByWordWordNav"
         cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+leftArrow+shift"] = "selectByWordWordNav"
         cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+rightArrow+shift"] = "selectByWordWordNav"
+        cursorManager.CursorManager._CursorManager__gestures["kb:control+numpad1+shift"] = "selectByWordWordNav"
+        cursorManager.CursorManager._CursorManager__gestures["kb:control+Windows+numpad1+shift"] = "selectByWordWordNav"
       # inputManager.executeGesture
         global originalExecuteGesture
         originalExecuteGesture = inputCore.InputManager.executeGesture
