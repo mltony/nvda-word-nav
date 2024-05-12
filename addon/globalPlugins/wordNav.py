@@ -965,6 +965,7 @@ def script_selectByWordWordNav(self,gesture):
         isVSCode = False
     option = f"{mods}AssignmentIndex"
     pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
+    direction = -1 if "leftArrow" in key else 1
     if (
         not isEnabled
         or pattern is None
@@ -974,10 +975,7 @@ def script_selectByWordWordNav(self,gesture):
     ):
         if 'Windows' not in mods:
             if isBrowseMode:
-                if key == "rightArrow":
-                    return cursorManager.CursorManager.script_moveByWord_forward(self, gesture)
-                else:
-                    return cursorManager.CursorManager.script_moveByWord_back(self, gesture)
+                return cursorManager.CursorManager._selectionMovementScriptHelper(self, unit=textInfos.UNIT_WORD, direction=direction)
             else:
                 try:
                     return self.editableText.EditableText.script_caret_changeSelection(self, gesture)
@@ -985,7 +983,6 @@ def script_selectByWordWordNav(self,gesture):
                     pass
         gesture.send()
         return
-    direction = -1 if "leftArrow" in key else 1
     selectTrailingSpace = key not in ["leftArrow", "rightArrow"]
     if getConfig("selectTrailingSpace"):
         selectTrailingSpace = not selectTrailingSpace
