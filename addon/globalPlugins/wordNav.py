@@ -726,6 +726,7 @@ def _moveToNextParagraph(
         except RuntimeError:
             # Microsoft Word raises RuntimeError when collapsing textInfo to the last character of the document.
             return False
+        collapsedAnchorPoint = paragraph.copy()
     else:
         paragraph.collapse(end=False)
         result = paragraph.move(textInfos.UNIT_CHARACTER, -1)
@@ -736,9 +737,10 @@ def _moveToNextParagraph(
         #return False
     if (
         direction > 0
-        and paragraph.compareEndPoints(oldParagraph, "startToStart") <= 0
+        and paragraph.compareEndPoints(collapsedAnchorPoint, "startToStart") <= 0
     ):
         # Sometimes in Microsoft word it just selects the same last paragraph repeatedly
+        # Also in Google Chrome it appears to select the last line if there are no more paragraphs
         return False
     return True
 
