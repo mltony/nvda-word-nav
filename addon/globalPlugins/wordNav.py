@@ -748,6 +748,13 @@ def _moveToNextParagraph(
         # Sometimes in Microsoft word it just selects the same last paragraph repeatedly
         # Also in Google Chrome it appears to select the last line if there are no more paragraphs
         return False
+    if (
+        direction > 0
+        and paragraph.compareEndPoints(oldParagraph, "startToStart") <= 0
+        and paragraph.compareEndPoints(oldParagraph, "endToEnd") <= 0
+    ):
+        # At last position in Notepad++ when the last line is empty
+        return False
     return True
 
 
