@@ -128,8 +128,10 @@ initConfiguration()
 
 
 # Regular expression for the beginning of a word. Matches:
-# 1. Empty string consisting of spaces or tabs but without any newline characters
+# 1a. Empty string consisting of spaces or tabs but without any newline characters (used in browse mode)
 wrEmpty = r"^(?=((?!\r|\n)\s)*$)"
+# 1b. Or, End of line that is not preceded by any newline characters (for editables)
+wrEol= r"(?<!\r|\n)$"
 # 2. Newline \r or \n characters
 wrNewline = r"[\r\n]+"
 # 3. Beginning of any word
@@ -138,8 +140,6 @@ wrWord = r"\b\w"
 wrPunc = r"(?<=[\w\s])[^\w\s]"
 # 5. Punctuation mark preceded by beginning of the string
 wrPunc2 = r"^[^\w\s]"
-wordReString = f"{wrEmpty}|{wrNewline}|{wrWord}|{wrPunc}|{wrPunc2}"
-wordRe = re.compile(wordReString)
 
 # word end regex - tweaking some clauses of word start regex
 # 3. End of word
@@ -149,8 +149,11 @@ wrPuncEnd = r"(?<=[^\w\s])[\w\s]"
 # 5. End of string preceded by Punctuation mark
 wrPunc2End = r"(?<=[^\w\s])$"
 
-wordEndReString = f"{wrEmpty}|{wrNewline}|{wrWordEnd}|{wrPuncEnd}|{wrPunc2End}"
-wordEndRe = re.compile(wordEndReString)
+def getWordReString(browseMode):
+    s = wrEmpty if browseMode else wrEol
+    wordReString = f"{s}|{wrNewline}|{wrWord}|{wrPunc}|{wrPunc2}"
+    wordEndReString = f"{s}|{wrNewline}|{wrWordEnd}|{wrPuncEnd}|{wrPunc2End}"
+    return wordReString, wordEndReString
 
 
 # Regular expression for beginning of fine word. This word definition breaks
@@ -163,10 +166,13 @@ wfrCap = r"(?<=[a-z])[A-Z]"
 # 8. Digit followed by alphabetic character
 wfrDigit = r"(?<=\d)[a-zA-Z]"
 #wfrDigit2 = r"(?<=[a-zA-Z])\d"
-wordReFineString = f"{wordReString}|{wfrLine}|{wfrCap}|{wfrDigit}"
-wordReFine = re.compile(wordReFineString)
-wordFineEndReString = f"{wordEndReString}|{wfrLine}|{wfrCap}|{wfrDigit}"
-wordFineEndRe = re.compile(wordFineEndReString)
+
+
+def getWordFineReString(browseMode):
+    wordReString, wordEndReString = getWordReString(browseMode)
+    wordReFineString = f"{wordReString}|{wfrLine}|{wfrCap}|{wfrDigit}"
+    wordFineEndReString = f"{wordEndReString}|{wfrLine}|{wfrCap}|{wfrDigit}"
+    return wordReFineString,wordFineEndReString
 
 # Regular expression for bulky words. Treats any punctuation signs as part of word.
 # Matches either:
@@ -181,7 +187,7 @@ def escapeRegex(s):
         return c
     return "".join(map(escapeCharacter, s))
 
-def generateWordReBulky(punctuation=None):
+def generateWordReBulky(punctuation=None, browseMode=False):
     if punctuation is None:
         punctuation = getConfig("bulkyWordPunctuation")
     punctuation = escapeRegex(punctuation)
@@ -193,21 +199,15 @@ def generateWordReBulky(punctuation=None):
     sp = r"(^|(?<=\s))[%s]" % punctuation
     ps = r"(?<=[%s])(\s|$)" % punctuation
     pw = r"(?<=[%s])%s" % (punctuation, w)
-    wordReBulkyString = f"{wrEmpty}|{wrNewline}|{sw}|{sp}|{pw}"
-    wordReBulky = re.compile(wordReBulkyString)
-    wordEndReBulkyString = f"{wrEmpty}|{wrNewline}|{ws}|{ps}|{pw}"
-    wordEndReBulky = re.compile(wordEndReBulkyString)
-    return wordReBulky, wordEndReBulky
+    s = wrEmpty if browseMode else wrEol
+    wordReBulkyString = f"{s}|{wrNewline}|{sw}|{sp}|{pw}"
+    wordEndReBulkyString = f"{s}|{wrNewline}|{ws}|{ps}|{pw}"
+    return wordReBulkyString, wordEndReBulkyString
 
 def generateWordReCustom():
     wordReBulkyString = getConfig("bulkyWordRegex")
-    wordReBulky = re.compile(wordReBulkyString)
-    wordEndReBulkyString = getConfig("bulkyWordEndRegex")
-    if len(wordEndReBulkyString) > 0:
-        wordEndReBulky = re.compile(wordEndReBulkyString)
-    else:
-        wordEndReBulky = wordReBulky
-    return wordReBulky, wordEndReBulky
+    wordEndReBulkyString = getConfig("bulkyWordEndRegex") or wordReBulkyString
+    return wordReBulkyString, wordEndReBulkyString
 
 # These constants map command assignment combo box index to actual functions
 # w stands for navigate by word
@@ -217,19 +217,25 @@ leftControlFunctions = "wwwwwbfwwbf"
 rightControlFunctions = "wwwbfwwbfww"
 controlWindowsFunctions = "0bf0000fbfb"
 
-def getRegexByFunction(index):
+def getRegexByFunction(index, browseMode):
+    wordCount = 1
     if index == 1:
-        return wordRe, wordEndRe, 1
-    elif index == 2:
-        return generateWordReBulky()+ (1,)
+        begin, end = getWordReString(browseMode)
+    elif index in [2,4]:
+        begin, end = generateWordReBulky(None, browseMode)
+        if index == 4:
+            wordCount = getConfig("wordCount")
     elif index == 3:
-        return wordReFine, wordFineEndRe, 1
-    elif index == 4:
-        return generateWordReBulky() + (getConfig("wordCount"),)
+        begin, end = getWordFineReString(browseMode)
     elif index == 5:
-        return generateWordReCustom() + (1,)
+        begin, end =  generateWordReCustom()
     else:
         return None, None, None
+    return (
+        re.compile(begin),
+        re.compile(end),
+        wordCount,
+    )
 
 class SettingsDialog(SettingsPanel):
     # Translators: Title for the settings dialog
@@ -657,7 +663,7 @@ def script_caret_moveByWordWordNav(self,gesture):
     else:
         isVSCode = False
     option = f"{mods}AssignmentIndex"
-    pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
+    pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option), isBrowseMode)
     if (
         not isEnabled
         or pattern is None
@@ -737,7 +743,7 @@ def _moveToNextParagraph(
         #return False
     if (
         direction > 0
-        and paragraph.compareEndPoints(collapsedAnchorPoint, "startToStart") <= 0
+        and paragraph.compareEndPoints(collapsedAnchorPoint, "startToStart") < 0
     ):
         # Sometimes in Microsoft word it just selects the same last paragraph repeatedly
         # Also in Google Chrome it appears to select the last line if there are no more paragraphs
@@ -966,7 +972,7 @@ def script_selectByWordWordNav(self,gesture):
     else:
         isVSCode = False
     option = f"{mods}AssignmentIndex"
-    pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option))
+    pattern, patternEnd, wordCount = getRegexByFunction(getConfig(option), isBrowseMode)
     direction = -1 if "leftArrow" in key else 1
     if (
         not isEnabled
