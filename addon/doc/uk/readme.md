@@ -4,8 +4,9 @@
 * Завантажити [стабільну версію][1]
 * Сумісність з NVDA: 2019.3 та новіші
 
-Додаток WordNav для NVDA покращує вбудовану навігацію по слову, а також
-додає додаткові команди навігації по слову з різним визначенням слова.
+WordNav NVDA add-on improves built-in navigation by word, as well as adds
+extra word navigation commands with different definition for the word. It
+also provides word selection commands.
 
 Більшість текстових редакторів підтримують команди Control+стрілка
 вліво/стрілка вправо для навігації словами. Однак визначення слова
@@ -21,15 +22,10 @@
 рядки в слова на стороні NVDA. Жест Control+стрілка вліво/вправо навіть не
 надсилається до програми, забезпечуючи таким чином послідовність промови.
 
-Зверніть увагу, що прототип WordNav раніше був частиною доповнення до
-[Tony's
-enhancements](https://github.com/mltony/nvda-tonys-enhancements/). Видаліть
-його або оновіть до [останньої стабільної
-версії](https://github.com/mltony/nvda-tonys-enhancements/releases/latest/download/tonysEnhancements.nvda-addon)
-щоб уникнути конфліктів.
+## Word navigation and word definitions
 
-Наразі  WordNav підтримує чотири визначення слова, призначені для різних
-жестів:
+Currently WordNav supports five definitions of the word, assigned to
+different gestures:
 
 * `Лівий control+стрілки`: визначення Notepad++, яке розпізнає буквенно-
   цифрові символи як слова, і суміжні розділові знаки також розпізнаються як
@@ -38,26 +34,72 @@ enhancements](https://github.com/mltony/nvda-tonys-enhancements/). Видалі�
 * `Правий control+стрілки`: Визначення точного слова розділяє
   `camelCaseIdentifiers` і `underscore_separated_identifiers` на окремі
   частини, що дозволяє курсору переходити до ідентифікаторів.
-* `Лівий control+Windows+стрілки`: Визначення об’ємних слів розглядає майже
-  всі символи пунктуації, прилеглі до тексту, як частину одного слова, тому
-  такі шляхи, як `C:\directory\subdirectory\file.txt` трактуватимуться як
-  одне слово.
+* `LeftControl+Windows+Arros`: Bulky word definition treats almost all
+  punctuation symbols adjacent to text as part of a single word, therefore
+  it would treat paths like `C:\directory\subdirectory\file.txt` as a single
+  word.
 * `Правий control+Windows+стрілки`: Визначення кількох слів, що об'єднує
   кілька слів разом, кількість слів налаштовується.
+* Unassigned: custom regular expression word definition: allows user to
+  define a custom regular expression for word boundaries.
 
 Жести можна налаштувати в панелі налаштувань WordNav.
 
+## Word selection
+
+Word selection is supported starting with WordNav v2.0. Just add `shift`
+modifier to any word navigation gestures to select words. There is also one
+extra gesture for word selection:
+
+* `control+shift+numpad1` and `control+windows+shift+numpad1` select word to
+  the right similar to their `rightArrow` counterparts, but they also
+  include trailing spaces into selection.
+
+Please note, however, that currently used accessibility APIs have multiple
+issues related to word selection. Please get yourself familiar with the
+following list of issues and workarounds:
+
+* UIA applications (e.g. Notepad, Visual Studio, Microsoft Word) don't
+  support setting caret at the beginning of selection. In those applications
+  caret location is stored on WordNav side. As an adverse side effect, word
+  navigation commands might not play well with line and paragraph selection
+  commands (`shift+up/downArrow`, `control+shift+up/downArrow`) and results
+  might be unpredictable. For convenience, character selection commands
+  (`shift+left/rightArrow`) have been updated in WordNav for UIA
+  applications and should work well.
+* Basic single line Windows edit controls also don't allow to set the caret
+  in front of selection, so the previous point also applies to them. This
+  affects all single line edit boxes within NVDA.
+* IAccessible2 doesn't provide a way to set selection spanning across
+  multiple paragraphs. There is no known workaround for this issue. This
+  affects rich multiline edit boxes in Chrome and Firefox, such as compose
+  email text area in GMail and compose email window in Thunderbird.
+* In notepad++ selection update messages come unreasonably slow. As a
+  workaround, WordNav announces selection on NVDA side for word selection
+  commands and silences late notifications for the following 0.5 seconds. As
+  a result, if you press word selection command followed by another
+  (e.g. character) selection command in quick succession, you might miss
+  selection notification for the latter one if it came within 0.5 seconds
+  from the last word selection command.
+* In multiline edit boxes supporting TOM interface NVDA incorrectly
+  identifies cursor location when selection is present. This has been fixed
+  in nvaccess/nvda#16455, which is scheduled to be included in NVDA v2024.2
+  release. Before that release word selection commands won't work correctly
+  in TOM edit boxes, such as NVDA log viewer.
+
 ## Примітки
 
-* Наразі WordNav не змінює жести `Control+Shift+стрілка вліво/стрілка
-  вправо` для вибору слів, оскільки реалізація таких команд значно
-  складніша.
 * Якщо ви хочете використовувати функцію віртуальних робочих столів у
   Windows 10, не забудьте вимкнути комбінації клавіш Control+Windows+стрілки
   або в панелі налаштувань WordNav, або в діалозі жестів вводу NVDA.
-* WordNav не працює надійно у VSCode, оскільки завдяки своїй внутрішній
-  оптимізації VSCode подає лише кілька рядків вмісту файлів одночасно, які
-  змінюються динамічно, і це іноді заважає алгоритму WordNav.
+* Compatibility with VSCode requires NVDA add-on IndentNav v2.0 or later to
+  be installed. Additionally, VSCode extension [Accessibility for NVDA
+  IndentNav](https://marketplace.visualstudio.com/items?itemName=TonyMalykh.nvda-indent-nav-accessibility)
+  must be installed in VSCode.
+
+##  Downloads
+
+Please install the latest version from NVDA add-on store.
 
 [[!tag dev stable]]
 

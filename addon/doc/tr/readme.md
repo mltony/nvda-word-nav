@@ -4,8 +4,9 @@
 * [kararlı sürümü][1] indir
 * NVDA 2019.3 veya sonraki bir sürümü gerektirir
 
-Kelime Dolaşımı NVDA eklentisi, NVDA'nın kelime dolaşım özelliğini
-iyileştirir ve farklı kelime tanımlarına farklı gezinme komutları ekler.
+Kelime Dolaşımı NVDA eklentisi, yerleşik kelime dolaşımını geliştirmenin
+yanı sıra, kelimenin farklı tanımıyla ekstra kelime dolaşımı komutları da
+ekler. Ayrıca kelime seçme komutları da sağlar.
 
 Çoğu metin düzenleyicisi, kelimeler arasında dolaşmak için Control+Sol
 OK/Sağ Ok tuşlarını destekler. Ancak kelimenin ne olarak tanımlandığı bir
@@ -22,14 +23,9 @@ satırları sözcüklere ayrıştıran gelişmiş kelime dolaşım komutları
 oluşturdum. Control +sağ ve Sol ok tuşları kullanılan programa gönderilmez
 ve böylece konuşma tutarlılığı sağlanır.
 
-Önemli: Kelime Dolaşımı eklentisinin ilk sürümü daha önce [Tony
-geliştirmeleri](https://github.com/mltony/nvda-tonys-enhancements/)
-eklentisinin bir parçası olduğunu unutmayın. Çakışmaları önlemek için lütfen
-eski eklentiy kaldırın veya [Tony geliştirmeleri eklentisinin son kararlı
-sürümüne](https://github.com/mltony/nvda-tonys-enhancements/releases/latest/download/tonysEnhancements.nvda-addon)
-yükseltin.
+## Kelime dolaşımı ve kelime tanımları
 
-Şu anda Kelime Dolaşımı, kelimenin farklı hareketlere atanmış dört tanımını
+Şu anda Kelime Dolaşımı, kelimenin farklı hareketlere atanmış beş tanımını
 desteklemektedir:
 
 * "SolKontrol+Ok tuşları": Alfanümerik karakterleri ve bitişik noktalama
@@ -40,28 +36,78 @@ desteklemektedir:
   tanımdır.
   CamelCase: olarak adlandırılan bir bileşik kelimenin ikinci kelimesinin
   büyük harfle başlaması.
-* "SolControl+Windows+Ok tuşları": karmaşık kelime tanımı, metin le bitişik
-  tüm noktalama işaretlerinin bulunduğu yapıları tek bir kelime gibi
-  algılar. Örneğin c:\klasör\altklasör\dosya.txt yapısını tek bir kelime
-  olarak algılar.
+* `SolKontrol+Windows+ok tuşları`: Hacimli kelime tanımı, metne bitişik
+  hemen hemen tüm noktalama işaretlerini tek bir kelimenin parçası olarak
+  ele alır, bu nedenle yolları tek bir kelime gibi ele
+  alır. C:\directory\subdirectory\\file.txt.
 * "SağKontrol+Windows+Ok tuşları": Birkaç kelimeyi bir arada gruplayan çok
   kelimeli tanım. Kelime sayısı yapılandırılabilir.
+* Atanmamış: özel normal ifade kelime tanımı: kullanıcının kelime sınırları
+  için özel bir normal ifade tanımlamasına olanak tanır.
 
 Hareketler, Kelime Dolaşımı ayarları  iletişim kutusundan
 özelleştirilebilir.
 
+## Kelime seçimi
+
+Kelime seçimi, Kelime Dolaşımı v2.0'dan itibaren
+desteklenmektedir. Kelimeleri seçmek için herhangi bir kelime dolaşım
+hareketine "shift" değiştiricisini eklemeniz yeterlidir. Kelime seçimi için
+ayrıca ekstra bir hareket daha vardır:
+
+* `CTRL+shift+sayısal tuş takımı 1` ve `CTRL+windows+shift+sayısal tuş
+  takımı 1`, `sağ ok` karşılıklarına benzer şekilde sağa doğru kelime seçer,
+  ancak seçime sondaki boşlukları da eklerler.
+
+Ancak, şu anda kullanılan erişilebilirlik API'lerinin kelime seçimiyle
+ilgili birden fazla sorunu olduğunu lütfen unutmayın. Lütfen aşağıdaki
+sorunlar ve geçici çözümler listesini öğrenin:
+
+* UIA uygulamaları (örneğin Notepad, Visual Studio, Microsoft Word) seçimin
+  başında işaret ayarlamayı desteklemez. Bu uygulamalarda caret konumu
+  Kelime Dolaşımı tarafında saklanır. Olumsuz bir yan etki olarak, kelime
+  dolaşımı komutları satır ve paragraf seçme komutlarıyla
+  (`shift+yukarı/aşağı Ok`, `CTRL+shift+yukarı/aşağı Ok`) iyi çalışmayabilir
+  ve sonuçlar tahmin edilemez olabilir. Kolaylık sağlamak için, karakter
+  seçim komutları (`shift+sol/sağ ok`) UIA uygulamaları için Kelime Dolaşımı
+  eklentisinde güncellenmiştir ve iyi çalışması gerekir.
+* Temel tek satırlı Windows düzenleme kontrolleri ayrıca düzeltme işaretinin
+  seçimin önüne ayarlanmasına izin vermez, bu nedenle önceki nokta onlar
+  için de geçerlidir. Bu, NVDA'daki tüm tek satırlı düzenleme kutularını
+  etkiler.
+* IAccessible2, seçimin birden çok paragrafa yayılmasını ayarlamanın bir
+  yolunu sağlamaz. Bu sorun için bilinen bir geçici çözüm yoktur. Bu,
+  GMail'deki e-posta metni oluşturma alanı ve Thunderbird'deki e-posta
+  oluşturma penceresi gibi Chrome ve Firefox'taki zengin çok satırlı
+  düzenleme kutularını etkiler.
+* Notepad++ seçiminde güncelleme mesajları makul olmayan bir şekilde yavaş
+  geliyor. Geçici bir çözüm olarak Kelime Dolaşımı, NVDA tarafında kelime
+  seçimi komutları için seçimi duyurur ve sonraki 0,5 saniye boyunca geç
+  bildirimleri susturur. Sonuç olarak, kelime seçme komutuna ve ardından
+  hızlı bir şekilde art arda başka bir (örneğin karakter) seçim komutuna
+  basarsanız, son kelime seçme komutundan 0,5 saniye sonra geldiyse
+  sonuncuya ilişkin seçim bildirimini kaçırabilirsiniz.
+* TOM arayüzünü destekleyen çok satırlı düzenleme kutularında NVDA, seçim
+  mevcut olduğunda imleç konumunu yanlış tanımlıyor. Bu durum, NVDA v2024.2
+  sürümüne dahil edilmesi planlanan nvaccess/nvda#16455'te düzeltildi. Bu
+  sürümden önce, kelime seçimi komutları, NVDA günlük görüntüleyici gibi TOM
+  düzenleme kutularında düzgün çalışmayacaktır.
+
 ## Notlar
 
-* Kelime Dolaşımı, kelime seçimi için kullanılan kontrol shift sağ sol ok
-  tuşları kısayollarını kullanmaz.
 * Windows 10'un sanal masaüstleri özelliğini kullanmak istiyorsanız, lütfen
   Kelime Dolaşımı Ayarları iletişim kutusundan veya NVDA Girdi hareketleri
   iletişim kutusunda Control+Windows+Oklar klavye kısayollarını devre dışı
   bırakmayı unutmayın.
-* Kelime Dolaşımı, VSCode'da düzgün bir şekilde çalışmaz. Bunun sebebi,
-  VSCode dahili optimizasyonları nedeniyle bir seferde yalnızca birkaç satır
-  dosya içeriği sunar. Bu durum ise dinamik olarak değişir ve zaman zaman
-  WordNav algoritmasıyla çakışabilir.
+* VSCode ile uyumluluk, NVDA eklentisi Girinti Dolaşımı v2.0 veya sonraki
+  sürümlerinin kurulu olmasını gerektirir. Ayrıca, VSCode'a VSCode uzantısı
+  [NVDA IndentNav için
+  Erişilebilirlik](https://marketplace.visualstudio.com/items?itemName=TonyMalykh.nvda-indent-nav-accessibility)
+  yüklenmelidir.
+
+##  İndirin
+
+Lütfen NVDA eklenti mağazasından en son sürümü yükleyin.
 
 [[!tag dev stable]]
 
