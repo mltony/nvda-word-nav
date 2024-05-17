@@ -1,50 +1,52 @@
 # WordNav #
 
-* Autor: Tony Malykh
-* Pobierz [Wersja stabilna][1]
-* Zgodność z NVDA: 2019.3 i nowsze
+* Auteur : Tony Malykh
+* Télécharger [version stable][1]
+* Compatibilité NVDA : 2019.3 et ultérieurs
 
 WordNav NVDA add-on improves built-in navigation by word, as well as adds
 extra word navigation commands with different definition for the word. It
 also provides word selection commands.
 
-Większość edytorów tekstu obsługuje polecenia Control+LeftArrow/RightArrow
-do nawigacji po słowach. Jednak definicja słowa zmienia się z jednego
-programu na drugi. Dotyczy to zwłaszcza nowoczesnych internetowych edytorów
-tekstu, takich jak Monako. NVDA powinna znać definicję słowa w danym
-programie, aby poprawnie wypowiadać słowa. Jeśli NVDA nie zna dokładnej
-definicji, to albo słowa zostaną pominięte, albo wymawiane wiele razy. Co
-więcej, niektóre internetowe edytory tekstu umieszczają kursor na końcu
-słowa, zamiast na początku, co znacznie utrudnia edycję użytkownikom
-niedowidzącym. Aby zwalczyć ten problem, stworzyłem ulepszone polecenia
-nawigacji po słowach, które pobierają definicję słowa z Notepad ++ i nie
-opierają się na definicji słów programu, ale raczej analizują linie na słowa
-po stronie NVDA. Gest Control+LeftArrow/RightArrow nie jest nawet wysyłany
-do programu, zapewniając w ten sposób spójność mowy.
+La plupart des éditeurs de texte prennent en charge les commandes
+Contrôle+FlècheGauche/FlècheDroite pour la navigation dans les
+mots. Cependant la définition du mot change d'un programme à l'autre. Cela
+est particulièrement vrai des éditeurs de texte modernes basés sur le Web,
+tels que Monaco. NVDA doit connaître la définition du mot dans un programme
+donné afin de prononcer les mots correctement. Si NVDA ne connaît pas la
+définition exacte, alors les mots seront ignorés ou prononcés plusieurs
+fois. De plus, certains éditeurs de texte basés sur le Web positionnent le
+curseur à la fin du mot, au lieu du début, ce qui rend l'édition beaucoup
+plus difficile pour les utilisateurs malvoyants. Afin de lutter contre ce
+problème, j'ai créé des commandes de navigation de mots améliorées, qui
+prennent la définition de mot de Notepad ++ et ne reposent pas sur la
+définition des mots du programme, mais analysent plutôt les lignes en mots
+du côté de NVDA. Le geste Contrôle+FlècheGauche/FlècheDroite n'est même pas
+envoyé au programme, assurant ainsi la cohérence du discours.
 
 ## Word navigation and word definitions
 
 Currently WordNav supports five definitions of the word, assigned to
 different gestures:
 
-* "Lewy Control + Strzałki": Definicja Notepad ++, która traktuje znaki
-  alfanumeryczne jako słowa, a sąsiednie znaki interpunkcyjne są również
-  traktowane jako słowa. Powinna to być najwygodniejsza definicja słowa dla
-  większości użytkowników.
-* "RightControl+Arrows": Definicja precyzyjnego słowa dzieli
-  "camelCaseIdentifiers" i "underscore_separated_identifiers" na oddzielne
-  części, umożliwiając w ten sposób kursorowi przejście do długich
-  identyfikatorów.
+* « Contrôle gauche + flèches » : définition de Notepad++, qui traite les
+  caractères alphanumériques comme des mots, et les signes de ponctuation
+  adjacents sont également traités comme des mots. Cela devrait être la
+  définition de mot la plus pratique pour la majorité des utilisateurs.
+* `ContrôleDroit+Flèches` : la définition fine des mots divise
+  `identifiantsCamelCase` et `identifiants_séparés_par_souligné` en parties
+  séparées, permettant ainsi au curseur d'entrer dans de longs identifiants.
 * `LeftControl+Windows+Arros`: Bulky word definition treats almost all
   punctuation symbols adjacent to text as part of a single word, therefore
   it would treat paths like `C:\directory\subdirectory\file.txt` as a single
   word.
-* "RightControl+Windows+Arros": definicja wielowyrazowa, która grupuje kilka
-  słów razem. Ilość słów jest konfigurowalna.
+* `ContrôleDroit+Windows+Flèches` : définition de plusieurs mots, qui
+  regroupe plusieurs mots. Le nombre de mots est configurable.
 * Unassigned: custom regular expression word definition: allows user to
   define a custom regular expression for word boundaries.
 
-Gesty można dostosować w panelu ustawień WordNav.
+Les gestes peuvent être personnalisés dans le panneau des paramètres de
+WordNav.
 
 ## Word selection
 
@@ -88,11 +90,12 @@ following list of issues and workarounds:
   release. Before that release word selection commands won't work correctly
   in TOM edit boxes, such as NVDA log viewer.
 
-## Notatki
+## Notes
 
-* Jeśli chcesz korzystać z funkcji wirtualnych pulpitów systemu Windows 10,
-  pamiętaj, aby wyłączyć skróty klawiaturowe Control + Windows + Strzałki w
-  panelu Ustawienia WordNav lub w oknie dialogowym Gesty wejściowe NVDA.
+* Si vous souhaitez utiliser la fonctionnalité de bureaux virtuels de
+  Windows 10, n'oubliez pas de désactiver les raccourcis clavier
+  Ctrl+Windows+Flèches soit dans le panneau Paramètres WordNav, soit dans le
+  dialogue Gestes dde commande de NVDA.
 * Compatibility with VSCode requires NVDA add-on IndentNav v2.0 or later to
   be installed. Additionally, VSCode extension [Accessibility for NVDA
   IndentNav](https://marketplace.visualstudio.com/items?itemName=TonyMalykh.nvda-indent-nav-accessibility)
