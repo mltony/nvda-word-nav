@@ -847,8 +847,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
                 if isinstance(newCaretInfo, MozillaCompoundTextInfo):
-                    # Google Chrome needs to be told twice
-                    newCaretInfo.updateCaret()
+                    # Google Chrome is blazing fast: https://issues.chromium.org/issues/40798413
+                    time.sleep(30/1000)
                 if isinstance(newCaretInfo, ScintillaTextInfo):
                     # Notepad++ doesn't remember cursor position when updated from here and then navigating by line up or down
                     # This hack makes it remember new position
