@@ -1,0 +1,169 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the wordNav package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: wordNav 2.0dev\n"
+"Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
+"POT-Creation-Date: 2024-05-14 19:25+0000\n"
+"PO-Revision-Date: 2024-05-28 21:55+0100\n"
+"Last-Translator: Ângelo Abrantes <ampa4374@gmail.com>\n"
+"Language-Team: Equipa portuguesa do NVDA: Ângelo Abrantes e Rui Fontes "
+"(28-05-2024)\n"
+"Language: pt_PT\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.4.4\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+
+#. Translators: Title for the settings dialog
+#. Add-on summary, usually the user visible name of the addon.
+#. Translators: Summary for this add-on
+#. to be shown on installation and add-on information found in Add-ons Manager.
+msgid "WordNav"
+msgstr "WordNav"
+
+msgid "Default NVDA word navigation (WordNav disabled)"
+msgstr "Navegação por palavras NVDA predefinida (WordNav desativado)"
+
+msgid "Notepad++ style navigation"
+msgstr "Navegação ao estilo do Notepad++"
+
+msgid "Bulky word navigation"
+msgstr "Navegação por palavras volumosas"
+
+msgid "Fine word navigation - good for programming"
+msgstr "Navegação por palavras finas - bom para programação"
+
+msgid "MultiWord navigation - reads multiple words at once"
+msgstr "Navegação MultiWord - lê várias palavras ao mesmo tempo"
+
+msgid "Custom regular expression word navigation"
+msgstr "Navegação por palavras com expressões regulares personalizadas"
+
+msgid "Unassigned"
+msgstr "Não Atribuidos"
+
+#. checkbox override move by word
+#. Translators: Checkbox for override move by word
+msgid "Enable WordNav in editables"
+msgstr "Ativar o WordNav em caixas editáveis"
+
+#. checkbox enableInBrowseMode
+#. Translators: Checkbox for enableInBrowseMode
+msgid "Enable WordNav in browse mode."
+msgstr "Ativar o WordNav no modo de navegação."
+
+#. checkbox enableSelection
+msgid "Enable WordNav word selection"
+msgstr "Ativar a seleção de palavras do WordNav"
+
+#. checkbox select trailing space
+msgid ""
+"Include trailing space when selecting words with control+shift+rightArrow"
+msgstr ""
+"Incluir espaço final ao selecionar palavras com control+shift+seta para a "
+"direita"
+
+#. left control assignment Combo box
+#. Translators: Label for left control assignment combo box
+msgid "Left control behavior:"
+msgstr "Comportamento de controlo esquerdo:"
+
+#. right control assignment Combo box
+#. Translators: Label for right control assignment combo box
+msgid "Right control behavior:"
+msgstr "Comportamento de controlo direito:"
+
+#. Left Control+Windows assignment Combo box
+#. Translators: Label for control+windows assignment combo box
+msgid "Left Control+Windows behavior:"
+msgstr "Controlo esquerdo+Comportamento do Windows:"
+
+#. Right Control+Windows assignment Combo box
+#. Translators: Label for control+windows assignment combo box
+msgid "Right Control+Windows behavior:"
+msgstr "Controlo direito+Comportamento do Windows:"
+
+#. bulkyWordPunctuation
+#. Translators: Label for bulkyWordPunctuation edit box
+msgid "Bulky word separators:"
+msgstr "Separadores de palavras volumosas:"
+
+#. Custom word regex
+msgid "Custom word regular expression:"
+msgstr "Personalizar expressão regular de palavra:"
+
+#. Custom word end regex
+msgid "Optional Custom word end regular expression for word selection:"
+msgstr ""
+"Opcional Expressão regular de fim de palavra personalizada para seleção de "
+"palavras:"
+
+#. MultiWord word count
+#. Translators: Label for multiWord wordCount edit box
+msgid "Word count for multiWord navigation:"
+msgstr "Contagem de palavras para navegação multiWord:"
+
+#. paragraphChimeVolumeSlider
+#. Translators: Paragraph crossing chime volume
+msgid "Volume of chime when crossing paragraph border"
+msgstr "Volume do sinal sonoro ao passar a margem do parágrafo"
+
+#. applicationsBlacklist edit
+#. Translators: Label for blacklisted applications edit box
+msgid "Disable WordNav in applications (comma-separated list)"
+msgstr "Desativar o WordNav nas aplicações (lista separada por vírgulas)"
+
+#. checkbox Disable in Google Docs
+msgid "Disable in Google Docs"
+msgstr "Desativar no Google Docs"
+
+msgid "WordCount must be a positive integer greater than 2."
+msgstr "WordCount deve ser um número inteiro positivo superior a 2."
+
+msgid ""
+"Error: in order for word navigation to work correctly in VSCode, please "
+"install the following:\n"
+"1. NVDA add-on IndentNav version v2.0 or later.\n"
+"2. VSCode extension: Accessibility for NVDA IndentNav.\n"
+"Please consult WordNav Readme file for more information."
+msgstr ""
+"Erro: para que a navegação por palavras funcione corretamente no VSCode, "
+"instale o seguinte:\n"
+"1. Complemento NVDA IndentNav versão v2.0 ou posterior.\n"
+"2. Extensão VSCode: Acessibilidade para NVDA IndentNav.\n"
+"Para mais informações, consulte o ficheiro Readme do WordNav."
+
+msgid "WordNav error"
+msgstr "Erro WordNav"
+
+msgid ""
+"Error: in order for word navigation to work correctly in VSCode, please "
+"install the following:\n"
+"1. NVDA add-on IndentNav version v2.0 or later.\n"
+"2. VSCode extension: Accessibility for NVDA IndentNav.\n"
+"IndentNav add-on has been detected; but VSCode extension does not appear to "
+"be running..\n"
+"Please consultf WordNav Readme file for more information."
+msgstr ""
+"Erro: para que a navegação por palavras funcione corretamente no VSCode, "
+"instale o seguinte:\n"
+"1. Complemento NVDA IndentNav versão v2.0 ou posterior.\n"
+"2. Extensão VSCode: Acessibilidade para NVDA IndentNav.\n"
+"O complemento IndentNav foi detectado, mas a extensão VSCode não parece "
+"estar a funcionar.\n"
+"Consulte o ficheiro Readme do WordNav para obter mais informações."
+
+msgid "WordNav move by word"
+msgstr "WordNav mover por palavra"
+
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
+msgid "Improved navigate by word and word selection commands."
+msgstr ""
+"Melhoria dos comandos de navegação por palavra e de seleção de palavras."

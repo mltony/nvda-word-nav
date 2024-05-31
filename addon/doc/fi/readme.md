@@ -4,101 +4,105 @@
 * Lataa [vakaa versio][1]
 * Yhteensopivuus: NVDA 2019.3 ja uudemmat
 
-WordNav NVDA add-on improves built-in navigation by word, as well as adds
-extra word navigation commands with different definition for the word. It
-also provides word selection commands.
+Sananavigointi-lisäosa parantaa sisäänrakennettua sananavigointia sekä lisää
+ylimääräisiä komentoja, joilla voi siirtyä eri tavalla määriteltyjen sanojen
+välillä. Lisäosassa on myös sananvalintakomentoja.
 
 Useimmat tekstieditorit tukevat Ctrl+Nuoli vasemmalle/oikealle -komentoja
 sananavigointia varten. Sanan määritelmä kuitenkin muuttuu ohjelmasta
 toiseen. Tämä pätee erityisesti nykyaikaisiin verkkopohjaisiin
 tekstieditoreihin, kuten Monaco. NVDA:n tulee tietää sanan määritelmä
 tietyssä ohjelmassa voidakseen puhua sanat oikein. Jos NVDA ei tiedä tarkkaa
-määritelmää, joko sanat ohitetaan tai ne puhutaan useita kertoja. Lisäksi
+määritelmää, sanat joko ohitetaan tai ne puhutaan useita kertoja. Lisäksi
 jotkin verkkopohjaiset tekstieditorit sijoittavat kohdistimen sanan loppuun
 alun sijaan, mikä tekee muokkaamisesta paljon vaikeampaa näkövammaisille
-käyttäjille. Tämän ongelman torjumiseksi olen luonut parannettuja
+käyttäjille. Tämän ongelman torjumiseksi on luotu parannettuja
 sananavigointikomentoja, jotka ottavat sanamääritelmän Notepad++:sta eivätkä
-luota ohjelman sanamäärittelyyn, vaan jäsentävät rivit sanoiksi NVDA:n
+luota ohjelman sanamäärittelyyn vaan jäsentävät rivit sanoiksi NVDA:n
 sisällä. Ctrl+Nuoli vasemmalle/oikealle -komentoa ei edes lähetetä
 ohjelmalle, mikä varmistaa puheen johdonmukaisuuden.
 
 ## Sananavigointi ja sanojen määritelmät
 
-Currently WordNav supports five definitions of the word, assigned to
-different gestures:
+Sananavigointi-lisäosa tukee tällä hetkellä viittä sanamääritelmää, joille
+on määritetty eri näppäinkomennot:
 
 * Vasen Ctrl+nuolet: Notepad++-määritelmä, joka käsittelee aakkosnumeerisia
   merkkejä ja vierekkäisiä välimerkkejä sanoina. Tämän pitäisi olla kätevin
   sanamääritelmä suurimmalle osalle käyttäjistä.
-* `Oikea Ctrl+nuolet`: Tarkka sanamääritelmä jakaa `karavaaniTyyliset`
-  merkkijonot sekä `alaviivalla_erotetut_merkkijonot` erillisiin osiin, mikä
-  mahdollistaa kohdistimen siirtämisen pitkiin merkkijonoihin.
-* `LeftControl+Windows+Arros`: Bulky word definition treats almost all
-  punctuation symbols adjacent to text as part of a single word, therefore
-  it would treat paths like `C:\directory\subdirectory\file.txt` as a single
-  word.
-* `Oikea Ctrl+Win+nuolinäppäimet`: Usean sanan määritelmä, joka ryhmittelee
-  useita sanoja yhteen. Sanojen määrä on säädettävissä.
-* Unassigned: custom regular expression word definition: allows user to
-  define a custom regular expression for word boundaries.
+* `Oikea Ctrl+Nuolet`: Tarkka sanamääritelmä jakaa `karavaaniTyyliset`
+  merkkijonot sekä `alaviivalla_erotetut_merkkijonot` erillisiksi osiksi,
+  mikä mahdollistaa kohdistimen siirtämisen pitkiin merkkijonoihin.
+* `Vasen Ctrl+Windows+Nuolet`: Laaja sanamäärittely käsittelee lähes kaikkia
+  tekstin perässä olevia välimerkkejä osana yhtä sanaa, joten se käsittelee
+  polut, kuten `C:\hakemisto\alihakemisto\tiedosto.txt` yhtenä sanana.
+* `Oikea Ctrl+Windows+Nuolet`: Monisanamääritelmä, joka ryhmittelee useita
+  sanoja yhteen. Sanojen määrä on muutettavissa.
+* Ei määritetty: Mukautetun sääntölausekkeen sanamääritelmällä käyttäjä voi
+  määritellä sanan rajat mukautetun sääntölausekkeen avulla.
 
 Näppäinkomennot ovat mukautettavissa Sananavigoinnin asetuspaneelissa.
 
 ## Sanan valitseminen
 
-Word selection is supported starting with WordNav v2.0. Just add `shift`
-modifier to any word navigation gestures to select words. There is also one
-extra gesture for word selection:
+Sananvalintaa tuetaan lisäosan versiosta 2.0 lähtien. Valitse sanoja
+lisäämällä mihin tahansa sananavigointikomentoon
+`Vaihto`-muokkausnäppäin. Sananvalintaa varten on myös yksi lisäkomento:
 
-* `control+shift+numpad1` and `control+windows+shift+numpad1` select word to
-  the right similar to their `rightArrow` counterparts, but they also
-  include trailing spaces into selection.
+* `Ctrl+Vaihto+Laskinnäppäimistön 1` ja
+  `Ctrl+Windows+Vaihto+Laskinnäppäimistön 1` valitsevat sanan oikealta
+  samalla tavalla kuin vastaavat `Oikea nuoli` -komennot, mutta ne
+  sisällyttävät valintaan myös loppuvälilyönnit.
 
-Please note, however, that currently used accessibility APIs have multiple
-issues related to word selection. Please get yourself familiar with the
-following list of issues and workarounds:
+Huomioithan kuitenkin, että tällä hetkellä käytössä olevissa
+saavutettavuusrajapinnoissa on useita sananvalintaan liittyviä
+ongelmia. Tutustu seuraavaan luetteloon ongelmista ja niiden kiertotavoista:
 
-* UIA applications (e.g. Notepad, Visual Studio, Microsoft Word) don't
-  support setting caret at the beginning of selection. In those applications
-  caret location is stored on WordNav side. As an adverse side effect, word
-  navigation commands might not play well with line and paragraph selection
-  commands (`shift+up/downArrow`, `control+shift+up/downArrow`) and results
-  might be unpredictable. For convenience, character selection commands
-  (`shift+left/rightArrow`) have been updated in WordNav for UIA
-  applications and should work well.
-* Basic single line Windows edit controls also don't allow to set the caret
-  in front of selection, so the previous point also applies to them. This
-  affects all single line edit boxes within NVDA.
-* IAccessible2 doesn't provide a way to set selection spanning across
-  multiple paragraphs. There is no known workaround for this issue. This
-  affects rich multiline edit boxes in Chrome and Firefox, such as compose
-  email text area in GMail and compose email window in Thunderbird.
-* In notepad++ selection update messages come unreasonably slow. As a
-  workaround, WordNav announces selection on NVDA side for word selection
-  commands and silences late notifications for the following 0.5 seconds. As
-  a result, if you press word selection command followed by another
-  (e.g. character) selection command in quick succession, you might miss
-  selection notification for the latter one if it came within 0.5 seconds
-  from the last word selection command.
-* In multiline edit boxes supporting TOM interface NVDA incorrectly
-  identifies cursor location when selection is present. This has been fixed
-  in nvaccess/nvda#16455, which is scheduled to be included in NVDA v2024.2
-  release. Before that release word selection commands won't work correctly
-  in TOM edit boxes, such as NVDA log viewer.
+* UIA-sovellukset (esim. Muistio, Visual Studio ja Microsoft Word) eivät tue
+  kohdistimen siirtämistä valinnan alkuun. Näissä sovelluksissa kohdistimen
+  sijainti tallennetaan Sananavigoinnin puolella. Haittavaikutuksena
+  sananavigointikomennot eivät välttämättä toimi saumattomasti rivin- ja
+  kappaleenvalintakomentojen kanssa (`Vaihto+Ylä/alanuoli`,
+  `Ctrl+Vaihto+Ylä/alanuoli`), ja tulokset voivat olla
+  ennakoimattomia. Käytännön syistä merkinvalintakomennot
+  (`Vaihto+Vasen/oikea nuoli`) on päivitetty Sananavigoinnissa
+  UIA-sovelluksia varten ja niiden pitäisi toimia hyvin.
+* Yksiriviset Windowsin perusmuokkaussäätimet eivät myöskään salli
+  kohdistimen siirtämistä valinnan eteen, joten aiempi huomautus pätee myös
+  niihin. Tämä vaikuttaa NVDA:ssa kaikkiin yksirivisiin muokkausruutuihin.
+* IAccessible2 ei tarjoa tapaa asettaa valintaa, joka ulottuu useisiin
+  kappaleisiin. Tälle ongelmalle ei ole tunnettua kiertotapaa. Tämä
+  vaikuttaa Chromessa ja Firefoxissa rikastekstiä sisältäviin monirivisiin
+  muokkausruutuihin, kuten sähköpostin kirjoitusalueeseen GMailissa ja
+  viestinkirjoitusikkunaan Thunderbirdissä.
+* Notepad++:ssa valinnanpäivitysilmoitukset tulevat kohtuuttoman
+  hitaasti. Ongelman kiertämiseksi Sananavigointi ilmoittaa valinnasta
+  NVDA:n puolella sananvalintakomentojen yhteydessä ja hiljentää
+  myöhästyneet ilmoitukset seuraavan 0,5 sekunnin ajaksi. Tämän seurauksena,
+  jos painat sananvalintakomentoa ja sen jälkeen nopeasti toista komentoa
+  (esim. merkin valitsemiseksi), saatat jäädä ilman valinnan ilmoitusta
+  jälkimmäisestä komennosta, jos se tuli 0,5 sekunnin sisällä edellisestä
+  sananvalintakäskystä.
+* NVDA tunnistaa virheellisesti kohdistimen sijainnin TOM-rajapintaa
+  tukevissa monirivisissä muokkausruuduissa, kun tekstiä on valittuna. Tämä
+  on korjattu nvaccess/nvda#16455:ssa, joka on suunniteltu sisällytettäväksi
+  NVDA:n 2024.2-versioon. Ennen tätä julkaisua sananvalintakomennot eivät
+  toimi oikein TOM-muokkausruuduissa, kuten NVDA:n lokintarkastelussa.
 
 ## Huomautuksia
 
 * Jos haluat käyttää Windows 10:n virtuaalityöpöytäominaisuutta, muista
-  poistaa käytöstä Ctrl+Win+nuolinäppäin-pikanäppäimet joko Sananavigoinnin
+  poistaa käytöstä Ctrl+Windows+Nuoli-pikanäppäimet joko Sananavigoinnin
   asetuspaneelissa tai NVDA:n Näppäinkomennot-valintaikkunassa.
-* Compatibility with VSCode requires NVDA add-on IndentNav v2.0 or later to
-  be installed. Additionally, VSCode extension [Accessibility for NVDA
+* Yhteensopivuus VSCoden kanssa edellyttää, että
+  Sisennysnavigointi-lisäosasta on asennettu versio 2.0 tai uudempi. Lisäksi
+  VSCodeen on asennettava [Accessibility for NVDA
   IndentNav](https://marketplace.visualstudio.com/items?itemName=TonyMalykh.nvda-indent-nav-accessibility)
-  must be installed in VSCode.
+  -laajennus.
 
-##  Downloads
+##  Lataukset
 
-Please install the latest version from NVDA add-on store.
+Asenna uusin versio NVDA:n lisäosakaupasta.
 
 [[!tag dev stable]]
 
