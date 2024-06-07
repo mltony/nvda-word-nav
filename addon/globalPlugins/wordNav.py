@@ -564,7 +564,7 @@ def getModifiers(gesture):
     control = None
     windows = False
     for modVk, modExt in gesture.modifiers:
-        if modVk == winUser.VK_LCONTROL:
+        if modVk == winUser.VK_LCONTROL or modVk == winUser.VK_CONTROL:
             control = 'left'
         if modVk == winUser.VK_RCONTROL:
             control = 'right'
