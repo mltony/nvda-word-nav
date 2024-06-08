@@ -63,6 +63,7 @@ from NVDAObjects.window.scintilla import ScintillaTextInfo
 from NVDAObjects.window.scintilla import Scintilla
 from NVDAObjects.UIA import UIATextInfo
 from NVDAObjects.window.edit import EditTextInfo
+from NVDAObjects.behaviors import Terminal
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -654,6 +655,7 @@ def script_caret_moveByWordWordNav(self,gesture):
     isEnabled = getConfig("enableInBrowseMode" if isBrowseMode else "overrideMoveByWord")
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
+    isTerminal = isinstance(obj, Terminal)
     gd = isGoogleDocs(obj)
     disableGd = gd if getConfig("disableInGoogleDocs") else False
     if not isBrowseMode:
@@ -670,6 +672,7 @@ def script_caret_moveByWordWordNav(self,gesture):
         or blacklisted
         or disableGd
         or (isVSCode and not isVSCodeMain)
+        or isTerminal
     ):
         if 'Windows' not in mods:
             if isBrowseMode:
@@ -970,6 +973,7 @@ def script_selectByWordWordNav(self,gesture):
     isNpp = isinstance(self, Scintilla)
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
+    isTerminal = isInstance(obj, Terminal)
     gd = isGoogleDocs(obj)
     disableGd = gd if getConfig("disableInGoogleDocs") else False
     if not isBrowseMode:
@@ -987,6 +991,7 @@ def script_selectByWordWordNav(self,gesture):
         or blacklisted
         or disableGd
         or (isVSCode and not isVSCodeMain)
+        or isTerminal
     ):
         if 'Windows' not in mods:
             if isBrowseMode:
