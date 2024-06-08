@@ -973,7 +973,7 @@ def script_selectByWordWordNav(self,gesture):
     isNpp = isinstance(self, Scintilla)
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
-    isTerminal = isInstance(obj, Terminal)
+    isTerminal = isinstance(obj, Terminal)
     gd = isGoogleDocs(obj)
     disableGd = gd if getConfig("disableInGoogleDocs") else False
     if not isBrowseMode:
