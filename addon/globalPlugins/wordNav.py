@@ -597,9 +597,10 @@ def isVscodeApp(self):
     try:
         if self.treeInterceptor is not None:
             return False
-    except NameError:
+        return self.appModule.productName.startswith("Visual Studio Code")
+    except (NameError, AttributeError, RuntimeError) as e:
+        mylog(f"Error in isVscodeApp: {str(e)}")
         return False
-    return self.appModule.productName.startswith("Visual Studio Code")
 
 def isVSCodeMainEditor(obj):
     if obj.role != controlTypes.Role.EDITABLETEXT:
