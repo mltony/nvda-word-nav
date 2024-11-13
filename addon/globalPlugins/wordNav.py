@@ -65,6 +65,7 @@ from NVDAObjects.UIA import UIATextInfo
 from NVDAObjects.window.edit import EditTextInfo
 from NVDAObjects.behaviors import Terminal
 import NVDAObjects.IAccessible.chromium
+from NVDAObjects.IAccessible import IA2TextTextInfo
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -960,6 +961,13 @@ def updateSelection(anchorInfo, newCaretInfo):
         updateSelection(innerAnchor, innerTmpCaret)
         if spanInfo._start is not spanInfo._end:
             updateSelection(innerTmpAnchor, innerCaret)
+    elif isinstance(newCaretInfo, IA2TextTextInfo) and newCaretInfo.obj.IAccessibleTextObject.NSelections == 1:
+        # updateSelection implementation is not good enough when selection is already present. This can cause unselected/selected stuttering in Chrome.
+        # providing a better implementation
+        anchorOffset, caretOffset = spanInfo._startOffset, spanInfo._endOffset
+        if caretAheadOfAnchor:
+            anchorOffset, caretOffset = caretOffset, anchorOffset
+        spanInfo.obj.IAccessibleTextObject.setSelection(0, anchorOffset, caretOffset)
     elif isinstance(newCaretInfo, OffsetsTextInfo):
         if caretAheadOfAnchor:
             # Hacking an invalid textInfo by swapping start and end
