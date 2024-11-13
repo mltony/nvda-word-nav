@@ -64,6 +64,7 @@ from NVDAObjects.window.scintilla import Scintilla
 from NVDAObjects.UIA import UIATextInfo
 from NVDAObjects.window.edit import EditTextInfo
 from NVDAObjects.behaviors import Terminal
+import NVDAObjects.IAccessible.chromium
 
 try:
     REASON_CARET = controlTypes.REASON_CARET
@@ -648,6 +649,36 @@ def makeVSCodeTextInfo(obj, position):
         return None
     return textInfo
 
+def makeCaretTextInfo(obj):
+    """
+    As of November 2024 Chrome cannot correctly tell us caret location in contenteditable text areas:
+    https://issues.chromium.org/issues/378692760
+    This function provides a work around for the simplest case when the entire selection is contained within a single child IAccessible object.
+    """
+    chromeEditorClass = NVDAObjects.IAccessible.chromium.Editor
+    if not isinstance(obj, chromeEditorClass):
+        caretInfo = obj.makeTextInfo(textInfos.POSITION_CARET)
+        return caretInfo, None
+    
+    # We start with selection as it appears to always work correctly in Chrome
+    selectionInfo = obj.makeTextInfo(textInfos.POSITION_SELECTION)
+    if selectionInfo.isCollapsed:
+        return selectionInfo, selectionInfo
+    if selectionInfo._startObj != selectionInfo._endObj:
+        # This case is tricky; no easy workaround here.
+        # Falling back to default behavior and hope Google will eventually fix the bug.
+        caretInfo = obj.makeTextInfo(textInfos.POSITION_CARET)
+        return caretInfo, selectionInfo
+    # Easy case: hacking up caret textInfo
+    caretInfo = selectionInfo.copy()
+    innerObj = caretInfo._startObj
+    caretOffset = innerObj.IAccessibleTextObject.caretOffset
+    caretInfo._start._startOffset = caretOffset
+    caretInfo._start._endOffset = caretOffset
+    caretInfo._end._startOffset = caretOffset
+    caretInfo._end._endOffset = caretOffset
+    return caretInfo, selectionInfo
+
 
 def script_caret_moveByWordWordNav(self,gesture):
     mods = getModifiers(gesture)
@@ -693,7 +724,7 @@ def script_caret_moveByWordWordNav(self,gesture):
             chimeNoNextWord()
             return
     else:
-        caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
+        caretInfo, _ = makeCaretTextInfo(self)
     doWordMove(caretInfo, pattern, direction, wordCount)
 
 
@@ -1017,8 +1048,8 @@ def script_selectByWordWordNav(self,gesture):
         selectionInfo = makeVSCodeTextInfo(self, textInfos.POSITION_SELECTION)
         oldInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
     else:
-        caretInfo = self.makeTextInfo(textInfos.POSITION_CARET)
-        selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
+        caretInfo, selectionInfo = makeCaretTextInfo(self)
+        selectionInfo = selectionInfo or self.makeTextInfo(textInfos.POSITION_SELECTION)
         oldInfo = selectionInfo.copy()
     fakeCaretMode = isFakeCaretMode(caretInfo)
     if isBrowseMode or fakeCaretMode:
@@ -1150,6 +1181,12 @@ def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direct
                 break
 
 def script_selectByCharacterWordNav(self,gesture):
+    """
+    In certain cases we also override selection by character.
+    This applies only to those situations where it's impossible to specify at which end of selection we should place the caret (e.g. in UIA applications).
+    So we emulate caret being present at this or that end.
+    So we override selection by character in those applications as well to preserve consistent behavior.
+    """
     selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
     fakeCaretMode = isFakeCaretMode(selectionInfo)
     if not fakeCaretMode:
