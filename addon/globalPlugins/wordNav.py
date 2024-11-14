@@ -66,7 +66,7 @@ from NVDAObjects.window.edit import EditTextInfo
 from NVDAObjects.behaviors import Terminal
 import NVDAObjects.IAccessible.chromium
 from NVDAObjects.IAccessible import IA2TextTextInfo
-
+import treeInterceptorHandler
 try:
     REASON_CARET = controlTypes.REASON_CARET
 except AttributeError:
@@ -684,7 +684,7 @@ def makeCaretTextInfo(obj):
 def script_caret_moveByWordWordNav(self,gesture):
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
-    isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    isBrowseMode = isinstance(self, treeInterceptorHandler.DocumentTreeInterceptor)
     isEnabled = getConfig("enableInBrowseMode" if isBrowseMode else "overrideMoveByWord")
     obj = self.rootNVDAObject if isBrowseMode else self
     blacklisted = isBlacklistedApp(obj)
@@ -927,7 +927,7 @@ def updateSelection(anchorInfo, newCaretInfo):
         globalCaretAheadOfAnchor[hwnd] = caretAheadOfAnchor
     except AttributeError:
         pass
-    isBrowseMode = isinstance(newCaretInfo._obj(), browseMode.BrowseModeDocumentTreeInterceptor)
+    isBrowseMode = isinstance(newCaretInfo._obj(), treeInterceptorHandler.DocumentTreeInterceptor)
     spanInfo = anchorInfo.copy()
     spanInfo.setEndPoint(newCaretInfo, 'startToStart' if caretAheadOfAnchor else 'endToEnd')
     if isBrowseMode:
@@ -1008,7 +1008,7 @@ def script_selectByWordWordNav(self,gesture):
     globalSelectByWordCounter += 1
     mods = getModifiers(gesture)
     key = gesture.mainKeyName
-    isBrowseMode = isinstance(self, browseMode.BrowseModeDocumentTreeInterceptor)
+    isBrowseMode = isinstance(self, treeInterceptorHandler.DocumentTreeInterceptor)
     isEnabled = getConfig("enableSelection")
     isNpp = isinstance(self, Scintilla)
     obj = self.rootNVDAObject if isBrowseMode else self
