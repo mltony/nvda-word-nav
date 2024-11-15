@@ -798,6 +798,8 @@ class MoveToCodePointOffsetError(Exception):
     pass
 
 
+VISUAL_STUDIO_CODEPOINT_EXCEPTION_RE = re.compile("^Inner textInfo text '.*' doesn't match outer textInfo text")
+
 def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
@@ -805,11 +807,24 @@ def moveToCodePointOffset(textInfo, offset):
     except RuntimeError as e:
         if str(e) == exceptionMessage:
             raise MoveToCodePointOffsetError(e)
+        elif (
+            isinstance(textInfo, VsWpfTextViewTextInfo)
+            and len(textInfo.text) >= 1
+            and textInfo.text[-1] == '\n'
+            and VISUAL_STUDIO_CODEPOINT_EXCEPTION_RE.search(str(e)) is not None
+        ):
+            # Visual Studio textInfo has the following weirdness: when you select a line, it also includes a trailing newline character \n.
+            # However, when you count characters from the back, that newline character is sometimes not counted.
+            # This causes exceptions during word navigation. Working around by trying again without that trailing newline character.
+            newTextInfo = textInfo.copy()
+            result = newTextInfo.move(textInfos.UNIT_CHARACTER, -1, 'end')
+            if (result != -1) or (len(newTextInfo.text) != len(textInfo.text) - 1):
+                raise e
+            return moveToCodePointOffset(newTextInfo, offset)
         else:
             raise e
 
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
-    paragraphUnit = getParagraphUnit(caretInfo)
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     paragraphInfo = caretInfo.copy()
@@ -1096,7 +1111,6 @@ def script_selectByWordWordNav(self,gesture):
         return
 
 def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direction, wordCount=1):
-    paragraphUnit = getParagraphUnit(caretInfo)
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     if not anchorInfo.isCollapsed:
