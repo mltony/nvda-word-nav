@@ -35,7 +35,6 @@ from NVDAObjects.window import winword
 from NVDAObjects.IAccessible.ia2TextMozilla import MozillaCompoundTextInfo 
 from compoundDocuments import CompoundTextInfo
 from NVDAObjects.window.scintilla import ScintillaTextInfo
-import nvwave
 import operator
 import os
 import re
@@ -362,33 +361,36 @@ class Beeper:
     MAX_CRACKLE_LEN = 400 # millis
     MAX_BEEP_COUNT = MAX_CRACKLE_LEN // (BEEP_LEN + PAUSE_LEN)
 
-    def __init__(self):
-        self.player = nvwave.WavePlayer(
-            channels=2,
-            samplesPerSec=int(tones.SAMPLE_RATE),
-            bitsPerSample=16,
-            outputDevice=config.conf["speech"]["outputDevice"],
-            wantDucking=False
-        )
-
-
+    def adjustVolume(self, data, volume):
+        volume = max(0, min(volume, 100))  # 确保音量在 0 到 100 之间
+        if volume == 100:
+            return data  # 无需调整
+        scalingFactor = volume / 100.0
+        numSamples = len(data) // 2
+        format = "<%dh" % numSamples  # 小端，带符号短整型
+        samples = struct.unpack(format, data)
+        adjustedSamples = [int(sample * scalingFactor) for sample in samples]
+        adjustedSamples = [max(-32768, min(32767, s)) for s in adjustedSamples]
+        adjustedData = struct.pack(format, *adjustedSamples)
+        return adjustedData
 
     def fancyCrackle(self, levels, volume):
         levels = self.uniformSample(levels, self.MAX_BEEP_COUNT )
         beepLen = self.BEEP_LEN
         pauseLen = self.PAUSE_LEN
         pauseBufSize = NVDAHelper.generateBeep(None,self.BASE_FREQ,pauseLen,0, 0)
-        beepBufSizes = [NVDAHelper.generateBeep(None,self.getPitch(l), beepLen, volume, volume) for l in levels]
+        beepBufSizes = [NVDAHelper.generateBeep(None,self.getPitch(l), beepLen, 100,100) for l in levels]
         bufSize = sum(beepBufSizes) + len(levels) * pauseBufSize
         buf = ctypes.create_string_buffer(bufSize)
         bufPtr = 0
         for l in levels:
             bufPtr += NVDAHelper.generateBeep(
                 ctypes.cast(ctypes.byref(buf, bufPtr), ctypes.POINTER(ctypes.c_char)),
-                self.getPitch(l), beepLen, volume, volume)
-            bufPtr += pauseBufSize # add a short pause
-        self.player.stop()
-        self.player.feed(buf.raw)
+                self.getPitch(l), beepLen, 100, 100)
+            bufPtr += pauseBufSize  # add a short pause
+        adjustedData = self.adjustVolume(buf.raw, volume)
+        tones.player.stop()
+        tones.player.feed(adjustedData)
 
     def simpleCrackle(self, n, volume):
         return self.fancyCrackle([0] * n, volume)
@@ -411,26 +413,28 @@ class Beeper:
         return result
 
     def fancyBeep(self, chord, length, left=10, right=10):
+        left = max(0, min(left, 100))
+        right = max(0, min(right, 100))
         beepLen = length
         freqs = self.getChordFrequencies(chord)
-        intSize = 8 # bytes
-        bufSize = max([NVDAHelper.generateBeep(None,freq, beepLen, right, left) for freq in freqs])
-        if bufSize % intSize != 0:
-            bufSize += intSize
-            bufSize -= (bufSize % intSize)
-        self.player.stop()
-        bbs = []
-        result = [0] * (bufSize//intSize)
+        sampleWidth = 2  # 16 位 PCM，2 字节
+        tones.player.stop()
+        result_samples = []
         for freq in freqs:
+            bufSize = NVDAHelper.generateBeep(None, freq, beepLen, 100, 100)
             buf = ctypes.create_string_buffer(bufSize)
-            NVDAHelper.generateBeep(buf, freq, beepLen, right, left)
-            bytes = bytearray(buf)
-            unpacked = struct.unpack("<%dQ" % (bufSize // intSize), bytes)
-            result = map(operator.add, result, unpacked)
-        maxInt = 1 << (8 * intSize)
-        result = map(lambda x : x %maxInt, result)
-        packed = struct.pack("<%dQ" % (bufSize // intSize), *result)
-        self.player.feed(packed)
+            NVDAHelper.generateBeep(buf, freq, beepLen, 100, 100)
+            samples = struct.unpack("<%dh" % (bufSize // sampleWidth), buf.raw)
+            if not result_samples:
+                result_samples = list(samples)
+            else:
+                result_samples = [s1 + s2 for s1, s2 in zip(result_samples, samples)]
+        maxSample = 32767
+        minSample = -32768
+        result_samples = [max(minSample, min(maxSample, s)) for s in result_samples]
+        packed = struct.pack("<%dh" % len(result_samples), *result_samples)
+        adjustedData = self.adjustVolume(packed, min(left, right))
+        tones.player.feed(adjustedData)
 
     def uniformSample(self, a, m):
         n = len(a)
@@ -439,10 +443,10 @@ class Beeper:
         # Here assume n > m
         result = []
         for i in range(0, m*n, n):
-            result.append(a[i  // m])
+            result.append(a[i // m])
         return result
     def stop(self):
-        self.player.stop()
+        tones.player.stop()
 
 
 def executeAsynchronously(gen):
@@ -736,7 +740,7 @@ def chimeCrossParagraphBorder():
     beeper.fancyBeep("AC#EG#", 30, volume, volume)
 
 def chimeNoNextWord():
-    volume = 25
+    volume = getConfig("paragraphChimeVolume")
     beeper.fancyBeep('HF', 100, left=volume, right=volume)
 
 def getParagraphUnit(textInfo):
