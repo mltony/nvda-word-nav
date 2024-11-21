@@ -361,36 +361,22 @@ class Beeper:
     MAX_CRACKLE_LEN = 400 # millis
     MAX_BEEP_COUNT = MAX_CRACKLE_LEN // (BEEP_LEN + PAUSE_LEN)
 
-    def adjustVolume(self, data, volume):
-        volume = max(0, min(volume, 100))  # 确保音量在 0 到 100 之间
-        if volume == 100:
-            return data  # 无需调整
-        scalingFactor = volume / 100.0
-        numSamples = len(data) // 2
-        format = "<%dh" % numSamples  # 小端，带符号短整型
-        samples = struct.unpack(format, data)
-        adjustedSamples = [int(sample * scalingFactor) for sample in samples]
-        adjustedSamples = [max(-32768, min(32767, s)) for s in adjustedSamples]
-        adjustedData = struct.pack(format, *adjustedSamples)
-        return adjustedData
-
     def fancyCrackle(self, levels, volume):
         levels = self.uniformSample(levels, self.MAX_BEEP_COUNT )
         beepLen = self.BEEP_LEN
         pauseLen = self.PAUSE_LEN
         pauseBufSize = NVDAHelper.generateBeep(None,self.BASE_FREQ,pauseLen,0, 0)
-        beepBufSizes = [NVDAHelper.generateBeep(None,self.getPitch(l), beepLen, 100,100) for l in levels]
+        beepBufSizes = [NVDAHelper.generateBeep(None, self.getPitch(l), beepLen, volume, volume) for l in levels]
         bufSize = sum(beepBufSizes) + len(levels) * pauseBufSize
         buf = ctypes.create_string_buffer(bufSize)
         bufPtr = 0
         for l in levels:
             bufPtr += NVDAHelper.generateBeep(
                 ctypes.cast(ctypes.byref(buf, bufPtr), ctypes.POINTER(ctypes.c_char)),
-                self.getPitch(l), beepLen, 100, 100)
+                self.getPitch(l), beepLen, volume, volume)
             bufPtr += pauseBufSize  # add a short pause
-        adjustedData = self.adjustVolume(buf.raw, volume)
         tones.player.stop()
-        tones.player.feed(adjustedData)
+        tones.player.feed(buf.raw)
 
     def simpleCrackle(self, n, volume):
         return self.fancyCrackle([0] * n, volume)
@@ -417,24 +403,29 @@ class Beeper:
         right = max(0, min(right, 100))
         beepLen = length
         freqs = self.getChordFrequencies(chord)
-        sampleWidth = 2  # 16 位 PCM，2 字节
+        sampleWidth = 2
         tones.player.stop()
-        result_samples = []
+        bufSize = 0
+        bufSizes = []
         for freq in freqs:
-            bufSize = NVDAHelper.generateBeep(None, freq, beepLen, 100, 100)
-            buf = ctypes.create_string_buffer(bufSize)
-            NVDAHelper.generateBeep(buf, freq, beepLen, 100, 100)
-            samples = struct.unpack("<%dh" % (bufSize // sampleWidth), buf.raw)
-            if not result_samples:
-                result_samples = list(samples)
+            size = NVDAHelper.generateBeep(None, freq, beepLen, left, right)
+            bufSizes.append(size)
+            if size > bufSize:
+                bufSize = size
+        buf = ctypes.create_string_buffer(bufSize)
+        totalSamples = None
+        for freq in freqs:
+            NVDAHelper.generateBeep(buf, freq, beepLen, left, right)
+            samples = struct.unpack("<%dh" % (bufSize // sampleWidth), buf.raw[:bufSize])
+            if totalSamples is None:
+                totalSamples = list(samples)
             else:
-                result_samples = [s1 + s2 for s1, s2 in zip(result_samples, samples)]
+                totalSamples = [s1 + s2 for s1, s2 in zip(totalSamples, samples)]
         maxSample = 32767
         minSample = -32768
-        result_samples = [max(minSample, min(maxSample, s)) for s in result_samples]
-        packed = struct.pack("<%dh" % len(result_samples), *result_samples)
-        adjustedData = self.adjustVolume(packed, min(left, right))
-        tones.player.feed(adjustedData)
+        totalSamples = [max(minSample, min(maxSample, s)) for s in totalSamples]
+        packedData = struct.pack("<%dh" % len(totalSamples), *totalSamples)
+        tones.player.feed(packedData)
 
     def uniformSample(self, a, m):
         n = len(a)
