@@ -820,6 +820,7 @@ def moveToCodePointOffset(textInfo, offset):
             raise e
 
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
+    speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     paragraphInfo = caretInfo.copy()
@@ -928,7 +929,7 @@ def updateSelection(anchorInfo, newCaretInfo):
         We neeed to do it dynamically, depending on whether the user selects back or forward.
         UIA and plain Windows edit controls always put caret at the end, so we need to make use of fake caret trick:
         we just memorize where the caret is supposed to be and override selectByCharacter commands to also use that fake caret.
-        IAccessible2 doesn't allow setting selection across paragraphs and there is nothing we fcan do to work around.
+        IAccessible2 doesn't allow setting selection across paragraphs and there is nothing we can do to work around.
         Here be dragons.
     """
     caretAheadOfAnchor = newCaretInfo.compareEndPoints(anchorInfo, "startToStart") < 0
@@ -1106,6 +1107,7 @@ def script_selectByWordWordNav(self,gesture):
         return
 
 def doWordSelect(caretInfo, anchorInfo, wordBeginPattern, wordEndPattern, direction, wordCount=1):
+    speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     if not anchorInfo.isCollapsed:
@@ -1204,6 +1206,7 @@ def script_selectByCharacterWordNav(self,gesture):
     So we emulate caret being present at this or that end.
     So we override selection by character in those applications as well to preserve consistent behavior.
     """
+    speech.clearTypedWordBuffer()
     selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
     fakeCaretMode = isFakeCaretMode(selectionInfo)
     if not fakeCaretMode:
