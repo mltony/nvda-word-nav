@@ -798,7 +798,15 @@ VISUAL_STUDIO_CODEPOINT_EXCEPTION_RE = re.compile("^Inner textInfo text '.*' doe
 def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
-        return textInfo.moveToCodepointOffset(offset)
+        if isinstance(textInfo, CompoundTextInfo):
+            # My optimized implementation sucks - doesn't work correctly in some cases
+            # E.g. in Gmail editor with spelling errors.
+            # Because it assumes if __start and _end belong to the same textInfo, then we can call moveToCodepointOffset on that inner textInfo, which is offsetTextInfo,
+            # but that's not the case, because we need to also recurse into inner text infos.
+            # So use generic implenetation as well until fixed in NVDA.
+            return textInfos.TextInfo.moveToCodepointOffset(textInfo, offset)
+        else:
+            return textInfo.moveToCodepointOffset(offset)
     except RuntimeError as e:
         if str(e) == exceptionMessage:
             raise MoveToCodePointOffsetError(e)
