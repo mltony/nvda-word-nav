@@ -66,6 +66,8 @@ from NVDAObjects.behaviors import Terminal
 import NVDAObjects.IAccessible.chromium
 from NVDAObjects.IAccessible import IA2TextTextInfo
 import treeInterceptorHandler
+from comtypes import COMError
+
 try:
     REASON_CARET = controlTypes.REASON_CARET
 except AttributeError:
@@ -795,10 +797,25 @@ class MoveToCodePointOffsetError(Exception):
 
 VISUAL_STUDIO_CODEPOINT_EXCEPTION_RE = re.compile("^Inner textInfo text '.*' doesn't match outer textInfo text")
 
+def isPlainMozillaCompoundTextInfo(textInfo):
+    try:
+        return (
+            isinstance(textInfo, MozillaCompoundTextInfo)
+            and textInfo._startObj == textInfo._endObj
+            and textInfo._startObj.iaHypertext.nHyperlinks == 0
+        )
+    except COMError as e:
+        if e.args[1] == 'Not implemented':
+            return True
+    return False
+
 def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
-        if isinstance(textInfo, CompoundTextInfo):
+        if (
+            isinstance(textInfo, CompoundTextInfo)
+            and not isPlainMozillaCompoundTextInfo(textInfo)
+        ):
             # My optimized implementation sucks - doesn't work correctly in some cases
             # E.g. in Gmail editor with spelling errors.
             # Because it assumes if __start and _end belong to the same textInfo, then we can call moveToCodepointOffset on that inner textInfo, which is offsetTextInfo,
