@@ -1,1 +1,2 @@
-Use this file to explain what has changed in your add-on since the previous release. This will be included automatically in the release description when used with GitHub actions.
+1. Localization updates.
+2. Resolved the issue that did not include English doc.
