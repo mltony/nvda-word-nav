@@ -983,29 +983,14 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
         return "".join(text), stringIndicesToTextInfos
         
     def moveToCodepointOffset_wordNav(self, codepointOffset):
-        dbgdbg = codepointOffset == 6
-        log.warn(f"mtcp {codepointOffset} {dbgdbg=}")
         text, mapping = self._getTextWith_Mapping_wordNav()
-        if dbgdbg:
-            api.text = text
-            api.mapping = mapping
         knownOffsets = sorted(list(mapping.keys()))
         i = bisect.bisect_right(knownOffsets, codepointOffset) - 1
         knownOffset = knownOffsets[i]
         innerTextInfo = mapping[knownOffset]
-        if dbgdbg:
-            api.knownOffsets = knownOffsets
-            api.i = i
-            api.knownOffset = knownOffset
-            api.innerTextInfo = innerTextInfo.copy()
-            api.telltale = innerTextInfo._obj().parent.role
         tmpOffset = innerTextInfo._startOffset
         innerTextInfo.expand(textInfos.UNIT_STORY)
         innerTextInfo._startOffset = tmpOffset
-        #innerExpanded = innerTextInfo.copy()
-        #innerExpanded.expand(textInfos.UNIT_STORY)
-        #innerPostInfo = innerTextInfo.copy()
-        #innerPostInfo.setEndPoint(innerExpanded, 'endToEnd')
         innerAnchor = innerTextInfo.moveToCodepointOffset(codepointOffset - knownOffset)
         anchor = self.copy()
         anchor._start = anchor._end = innerAnchor
@@ -1045,16 +1030,9 @@ def isPlainMozillaCompoundTextInfo(textInfo):
             return True
     return False
 
-api.counter = 0
-api.t = []
-api.o = []
 def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
-        #return textInfos.TextInfo.moveToCodepointOffset(textInfo, offset)
-        api.t.append(textInfo.copy())
-        api.o.append(offset)
-        api.counter += 1
         return textInfo.moveToCodepointOffset_wordNav(offset)
     except RuntimeError as e:
         if str(e) == exceptionMessage:
@@ -1120,10 +1098,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 except IndexError:
                     wordEndOffset = len(text)
                     wordEndIsParagraphEnd = True
-                mylog(f"resultWordOffsets: {newCaretOffset}..{wordEndOffset}")
-                #newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
-                #wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
-                log.warn(f"asdf {newCaretOffset=}")
                 try:
                     newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset)
                 except MoveToCodePointOffsetError:
@@ -1138,11 +1112,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                         del stops[newWordIndex]
                         continue #inner loop
                     else:
-                        if api.getFocusObject().appModule.appName == 'chrome':
-                            log.warn(f"{caretInfo._start._startOffset=} {newCaretInfo._start._startOffset=} {caretInfo._startObj=} {newCaretInfo._startObj=}")
-                            #api.i = caretInfo._startObj
-                            #api.o = newCaretInfo._startObj
-                            log.warn(f"{newCaretInfo._startObj.name=}")
                         # This has never been observed yet.
                         raise RuntimeError(f"Cursor didn't move {direction=}")
                 try:
@@ -1153,13 +1122,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                         raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
                     del stops[newWordIndex + wordCount]
                     continue # inner loop
-                api.a = newCaretInfo.copy()
-                api.b = wordEndInfo.copy()
-                if "ITextDocumentTextInfo" in str(type(newCaretInfo)):
-                    try:
-                        log.warn(f"newCaretInfo ofs {newCaretInfo._start._startOffset} obj {newCaretInfo._startObj.name}")
-                    except AttributeError:
-                        log.warn("asdf error!")
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
@@ -1170,7 +1132,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     # Notepad++ doesn't remember cursor position when updated from here and then navigating by line up or down
                     # This hack makes it remember new position
                     executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(True, globalGestureCounter))
-                api.wordInfo = wordInfo.copy()
                 speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                 if crossedParagraph:
                     chimeCrossParagraphBorder()
