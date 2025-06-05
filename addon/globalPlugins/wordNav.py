@@ -1119,10 +1119,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
-                if len(text.rstrip("\r\n")) > 0:
-                    doRight = not wordEndIsParagraphEnd
-                else:
-                    doRight = direction < 0
+                doRight = direction < 0
                 if isinstance(newCaretInfo, MozillaCompoundTextInfo):
                     # Also Chrome sometimes forgets cursor location if updated via accessibility API, 
                     # for example when doing alt-tab right after updating,
