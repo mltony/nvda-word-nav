@@ -625,6 +625,7 @@ def isVSCodeMainEditor(obj):
 
 def makeVSCodeTextInfo(obj, position):
     try:
+        #textInfo = obj.makeTextInfo(position)
         textInfo = obj.makeEnhancedTextInfo(position)
     except AttributeError:
         errorMsg = _(
@@ -716,13 +717,7 @@ def script_caret_moveByWordWordNav(self,gesture):
             gesture.send()
         return
     direction = 1 if "rightArrow" in key else -1
-    if isVSCode:
-        caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
-        if caretInfo is None:
-            chimeNoNextWord()
-            return
-    else:
-        caretInfo, _ = makeCaretTextInfo(self)
+    caretInfo, _ = makeCaretTextInfo(self)
     doWordMove(caretInfo, pattern, direction, wordCount)
 
 
