@@ -983,7 +983,6 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
         return "".join(text), stringIndicesToTextInfos
         
     def moveToCodepointOffset_wordNav(self, codepointOffset):
-        t0 = time.time()
         text, mapping = self._getTextWith_Mapping_wordNav()
         knownOffsets = sorted(list(mapping.keys()))
         i = bisect.bisect_right(knownOffsets, codepointOffset) - 1
@@ -1000,9 +999,6 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
             # Manually releasing hard references to the objects we didn't need.
             # As if Python no longer has a GC.
             del textInfo._hardObj
-        t1 = time.time()
-        dt = int(1000*(t1-t0))
-        log.warn(f"mtcp {dt} ms o={codepointOffset}")
         return anchor
         
     def moveToCodepointOffset_wordNav_generic(self, codepointOffset):
@@ -1059,7 +1055,6 @@ def moveToCodePointOffset(textInfo, offset):
             raise e
 
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
-    t0 = time.time()
     speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
@@ -1070,8 +1065,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
     caretOffset = len(pretextInfo.text)
     crossedParagraph = False
     MAX_ATTEMPTS = 10
-    t11 = time.time(); dt = int(1000*(t11-t0))
-    log.warn(f"doMove11 {dt} ms")
     for attempt in range(MAX_ATTEMPTS):
         text = paragraphInfo.text
         mylog(f"attempt! {caretOffset=} n={len(text)} {text=}")
@@ -1091,9 +1084,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             if 0 <= newWordIndex < len(stops):
                 # Next word found in the same paragraph
                 # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
-                t12 = time.time(); dt = int(1000*(t12-t11))
-                log.warn(f"doMove12 {dt} ms")
-
                 mylog(f"Same Para!")
                 if attempt == 0 and wordCount > 1:
                     # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
@@ -1134,18 +1124,10 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
-                t13 = time.time(); dt = int(1000*(t13-t12))
-                log.warn(f"doMove13 {dt} ms")
-                #doRight = not (wordEndIsParagraphEnd and len(text.rstrip("\r\n")) > 0)
                 if len(text.rstrip("\r\n")) > 0:
                     doRight = not wordEndIsParagraphEnd
                 else:
                     doRight = direction < 0
-                #api.text = text
-                #api.tl = len(text)
-                #api.doRight = doRight
-                #tones.beep(500, 50)
-                
                 if isinstance(newCaretInfo, MozillaCompoundTextInfo):
                     # Also Chrome sometimes forgets cursor location if updated via accessibility API, 
                     # for example when doing alt-tab right after updating,
@@ -1158,8 +1140,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                 if crossedParagraph:
                     chimeCrossParagraphBorder()
-                t1 = time.time(); dt = int(1000*(t1-t0))
-                log.warn(f"doMove {dt} ms")
                 return
             else:
                 # New word found in the next paragraph!
@@ -1167,8 +1147,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 crossedParagraph = True
                 if not _moveToNextParagraph(paragraphInfo, direction):
                     chimeNoNextWord()
-                    t1 = time.time(); dt = int(1000*(t1-t0))
-                    log.warn(f"doMove {dt} ms")
                     return
                 if direction > 0:
                     caretOffset = -1
