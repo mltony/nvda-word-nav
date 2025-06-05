@@ -791,6 +791,242 @@ def _moveToNextParagraph(
     return True
 
 
+def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
+    # My optimized implementation sucks - doesn't work correctly in some cases
+    # E.g. in Gmail editor with spelling errors.
+    # Because it assumes if __start and _end belong to the same textInfo, then we can call moveToCodepointOffset on that inner textInfo, which is offsetTextInfo,
+    # but that's not the case, because we need to also recurse into inner text infos.
+    # So use this hacky implementation until fixed in NVDA.
+    
+    from NVDAObjects.IAccessible.ia2TextMozilla import MozillaCompoundTextInfo
+    from textInfos import offsets
+    from NVDAObjects.IAccessible.ia2TextMozilla import _getEmbedded, _getRawTextInfo
+    from NVDAObjects import NVDAObjectTextInfo
+
+    def adjustTextInfoOffset(textInfo, offset):
+        textInfo = textInfo.copy()
+        textInfo._startOffset = textInfo._endOffset = offset
+        # We need to store a hard reference to the object, because otherwise the object apparently sometimes dies before we can make use of it.
+        # NVDA is using a questionable memory model where they don't rely on Python GC, but rather rely on reference counters.
+        # So in order to prevent circular references - e.g. when textInfo references object and vice versa,
+        # They use weak references instead.
+        # This apparently generates a lot of headache especially in complicated algorithms.
+        # Wondering if there are any tangible benefits of this approach.
+        textInfo._hardObj = textInfo._obj()
+        return textInfo
+        
+    
+    def _iterRecursiveText_wordNav(self, ti: offsets.OffsetsTextInfo, controlStack, formatConfig):
+        encoder = ti._getOffsetEncoder()
+        seenCharacters = 0
+        if ti.obj == self._endObj:
+            end = True
+            ti.setEndPoint(self._end, "endToEnd")
+        else:
+            end = False
+    
+        for item in ti._iterTextWithEmbeddedObjects(controlStack is not None, formatConfig=formatConfig):
+            if item is None:
+                yield ""
+            elif isinstance(item, str):
+                startOffset = ti._startOffset + encoder.strToEncodedOffsets(seenCharacters, seenCharacters)[0]
+                yield adjustTextInfoOffset(ti, startOffset)
+                yield item
+                seenCharacters += len(item)
+            elif isinstance(item, int):  # Embedded object.
+                seenCharacters += 1
+                embedded: typing.Optional[IAccessible] = _getEmbedded(ti.obj, item)
+                if embedded is None:
+                    continue
+                notText = _getRawTextInfo(embedded) is NVDAObjectTextInfo
+                if controlStack is not None:
+                    controlField = self._getControlFieldForObject(embedded)
+                    controlStack.append(controlField)
+                    if controlField:
+                        if notText:
+                            controlField["content"] = embedded.name
+                        controlField["_startOfNode"] = True
+                        yield textInfos.FieldCommand("controlStart", controlField)
+                if notText:
+                    # A 'stand-in' character is necessary to make routing work on braille devices.
+                    # Note #11291:
+                    # Using a space character (EG " ") causes 'space' to be announced after objects like graphics.
+                    # If this is replaced with an empty string, routing to cell becomes innaccurate.
+                    # Using the textUtils.OBJ_REPLACEMENT_CHAR which is the
+                    # "OBJECT REPLACEMENT CHARACTER" (EG "\uFFFC")
+                    # results in '"0xFFFC' being displayed on the braille device.
+                    startOffset = ti._startOffset + encoder.strToEncodedOffsets(seenCharacters - 1, seenCharacters - 1)[0]
+                    yield adjustTextInfoOffset(ti, startOffset)
+                    yield " "
+                else:
+                    for subItem in self._iterRecursiveText_wordNav(
+                        self._makeRawTextInfo(embedded, textInfos.POSITION_ALL),
+                        controlStack,
+                        formatConfig,
+                    ):
+                        yield subItem
+                        if subItem is None:
+                            return
+                if controlStack is not None and controlField:
+                    controlField["_endOfNode"] = True
+                    del controlStack[-1]
+                    yield textInfos.FieldCommand("controlEnd", None)
+            else:
+                yield item
+                raise RuntimeError
+    
+        if end:
+            # None means the end has been reached and text retrieval should stop.
+            yield None
+    
+    def _getText_wordNav(self, withFields, formatConfig=None):
+        fields = []
+        if self.isCollapsed:
+            return fields
+    
+        if withFields:
+            # Get the initial control fields.
+            controlStack = []
+            rootObj = self.obj
+            obj = self._startObj
+            ti = self._start
+            cannotBeStart = False
+            while obj and obj != rootObj:
+                field = self._getControlFieldForObject(obj)
+                if field:
+                    if ti._startOffset == 0:
+                        if not cannotBeStart:
+                            field["_startOfNode"] = True
+                    else:
+                        # We're not at the start of this object, which also means we're not at the start of any ancestors.
+                        cannotBeStart = True
+                    fields.insert(0, textInfos.FieldCommand("controlStart", field))
+                controlStack.insert(0, field)
+                ti = self._getEmbedding(obj)
+                if not ti:
+                    log.debugWarning(
+                        "_getEmbedding returned None while getting initial fields. " "Object probably dead.",
+                    )
+                    return []
+                obj = ti.obj
+        else:
+            controlStack = None
+    
+        # Get the fields for start.
+        fields += list(self._iterRecursiveText_wordNav(self._start, controlStack, formatConfig))
+        if not fields:
+            # We're not getting anything, so the object must be dead.
+            # (We already handled collapsed above.)
+            return fields
+        obj = self._startObj
+        while fields[-1] is not None:
+            # The end hasn't yet been reached, which means it isn't a descendant of obj.
+            # Therefore, continue from where obj was embedded.
+            if withFields:
+                try:
+                    field = controlStack.pop()
+                except IndexError:
+                    # We're trying to walk up past our root. This can happen if a descendant
+                    # object within the range died, in which case _iterRecursiveText_wordNav will
+                    # never reach our end object and thus won't yield None. This means this
+                    # range is invalid, so just return nothing.
+                    log.debugWarning("Tried to walk up past the root. Objects probably dead.")
+                    return []
+                if field:
+                    # This object had a control field.
+                    field["_endOfNode"] = True
+                    fields.append(textInfos.FieldCommand("controlEnd", None))
+            ti = self._getEmbedding(obj)
+            if not ti:
+                log.debugWarning(
+                    "_getEmbedding returned None while ascending to get more text. " "Object probably dead.",
+                )
+                return []
+            obj = ti.obj
+            if ti.move(textInfos.UNIT_OFFSET, 1) == 0:
+                # There's no more text in this object.
+                continue
+            ti.setEndPoint(self._makeRawTextInfo(obj, textInfos.POSITION_ALL), "endToEnd")
+            fields.extend(self._iterRecursiveText_wordNav(ti, controlStack, formatConfig))
+        del fields[-1]
+    
+        if withFields:
+            # Determine whether the range covers the end of any ancestors of endObj.
+            obj = self._endObj
+            ti = self._end
+            while obj and obj != rootObj:
+                field = controlStack.pop()
+                if field:
+                    fields.append(textInfos.FieldCommand("controlEnd", None))
+                if ti.compareEndPoints(self._makeRawTextInfo(obj, textInfos.POSITION_ALL), "endToEnd") == 0:
+                    if field:
+                        field["_endOfNode"] = True
+                else:
+                    # We're not at the end of this object, which also means we're not at the end of any ancestors.
+                    break
+                ti = self._getEmbedding(obj)
+                obj = ti.obj
+    
+        return fields
+    def _getTextWith_Mapping_wordNav(self):
+        text = []
+        currentStringIndex = 0
+        stringIndicesToTextInfos = {}
+        for field in self._getText_wordNav(withFields=False):
+            if isinstance(field, textInfos.TextInfo):
+                stringIndicesToTextInfos[currentStringIndex] = field
+            elif isinstance(field, str):
+                text.append(field)
+                currentStringIndex += len(field)
+            else:
+                pass
+        return "".join(text), stringIndicesToTextInfos
+        
+    def moveToCodepointOffset_wordNav(self, codepointOffset):
+        dbgdbg = codepointOffset == 6
+        log.warn(f"mtcp {codepointOffset} {dbgdbg=}")
+        text, mapping = self._getTextWith_Mapping_wordNav()
+        if dbgdbg:
+            api.text = text
+            api.mapping = mapping
+        knownOffsets = sorted(list(mapping.keys()))
+        i = bisect.bisect_right(knownOffsets, codepointOffset) - 1
+        knownOffset = knownOffsets[i]
+        innerTextInfo = mapping[knownOffset]
+        if dbgdbg:
+            api.knownOffsets = knownOffsets
+            api.i = i
+            api.knownOffset = knownOffset
+            api.innerTextInfo = innerTextInfo.copy()
+            api.telltale = innerTextInfo._obj().parent.role
+        tmpOffset = innerTextInfo._startOffset
+        innerTextInfo.expand(textInfos.UNIT_STORY)
+        innerTextInfo._startOffset = tmpOffset
+        #innerExpanded = innerTextInfo.copy()
+        #innerExpanded.expand(textInfos.UNIT_STORY)
+        #innerPostInfo = innerTextInfo.copy()
+        #innerPostInfo.setEndPoint(innerExpanded, 'endToEnd')
+        innerAnchor = innerTextInfo.moveToCodepointOffset(codepointOffset - knownOffset)
+        anchor = self.copy()
+        anchor._start = anchor._end = innerAnchor
+        anchor._startObj = anchor._endObj = innerAnchor._hardObj
+        for textInfo in mapping.values():
+            # Manually releasing hard references to the objects we didn't need.
+            # As if Python no longer has a GC.
+            del textInfo._hardObj
+        return anchor
+        
+    def moveToCodepointOffset_wordNav_generic(self, codepointOffset):
+        return self.moveToCodepointOffset(codepointOffset)
+    
+    MozillaCompoundTextInfo._iterRecursiveText_wordNav = _iterRecursiveText_wordNav
+    MozillaCompoundTextInfo._getText_wordNav = _getText_wordNav
+    MozillaCompoundTextInfo._getTextWith_Mapping_wordNav = _getTextWith_Mapping_wordNav
+    MozillaCompoundTextInfo.moveToCodepointOffset_wordNav = moveToCodepointOffset_wordNav
+    textInfos.TextInfo.moveToCodepointOffset_wordNav = moveToCodepointOffset_wordNav_generic
+
+patchMoveToCodepointOffsetInCompoundMozillaTextInfo()
+
 class MoveToCodePointOffsetError(Exception):
     pass
 
@@ -809,21 +1045,17 @@ def isPlainMozillaCompoundTextInfo(textInfo):
             return True
     return False
 
+api.counter = 0
+api.t = []
+api.o = []
 def moveToCodePointOffset(textInfo, offset):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
-        if (
-            isinstance(textInfo, CompoundTextInfo)
-            and not isPlainMozillaCompoundTextInfo(textInfo)
-        ):
-            # My optimized implementation sucks - doesn't work correctly in some cases
-            # E.g. in Gmail editor with spelling errors.
-            # Because it assumes if __start and _end belong to the same textInfo, then we can call moveToCodepointOffset on that inner textInfo, which is offsetTextInfo,
-            # but that's not the case, because we need to also recurse into inner text infos.
-            # So use generic implenetation as well until fixed in NVDA.
-            return textInfos.TextInfo.moveToCodepointOffset(textInfo, offset)
-        else:
-            return textInfo.moveToCodepointOffset(offset)
+        #return textInfos.TextInfo.moveToCodepointOffset(textInfo, offset)
+        api.t.append(textInfo.copy())
+        api.o.append(offset)
+        api.counter += 1
+        return textInfo.moveToCodepointOffset_wordNav(offset)
     except RuntimeError as e:
         if str(e) == exceptionMessage:
             raise MoveToCodePointOffsetError(e)
@@ -891,6 +1123,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 mylog(f"resultWordOffsets: {newCaretOffset}..{wordEndOffset}")
                 #newCaretInfo = paragraphInfo.moveToCodepointOffset(newCaretOffset)
                 #wordEndInfo = paragraphInfo.moveToCodepointOffset(wordEndOffset)
+                log.warn(f"asdf {newCaretOffset=}")
                 try:
                     newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset)
                 except MoveToCodePointOffsetError:
@@ -905,6 +1138,11 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                         del stops[newWordIndex]
                         continue #inner loop
                     else:
+                        if api.getFocusObject().appModule.appName == 'chrome':
+                            log.warn(f"{caretInfo._start._startOffset=} {newCaretInfo._start._startOffset=} {caretInfo._startObj=} {newCaretInfo._startObj=}")
+                            #api.i = caretInfo._startObj
+                            #api.o = newCaretInfo._startObj
+                            log.warn(f"{newCaretInfo._startObj.name=}")
                         # This has never been observed yet.
                         raise RuntimeError(f"Cursor didn't move {direction=}")
                 try:
@@ -915,6 +1153,13 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                         raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
                     del stops[newWordIndex + wordCount]
                     continue # inner loop
+                api.a = newCaretInfo.copy()
+                api.b = wordEndInfo.copy()
+                if "ITextDocumentTextInfo" in str(type(newCaretInfo)):
+                    try:
+                        log.warn(f"newCaretInfo ofs {newCaretInfo._start._startOffset} obj {newCaretInfo._startObj.name}")
+                    except AttributeError:
+                        log.warn("asdf error!")
                 wordInfo = newCaretInfo.copy()
                 wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                 newCaretInfo.updateCaret()
@@ -925,6 +1170,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     # Notepad++ doesn't remember cursor position when updated from here and then navigating by line up or down
                     # This hack makes it remember new position
                     executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(True, globalGestureCounter))
+                api.wordInfo = wordInfo.copy()
                 speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                 if crossedParagraph:
                     chimeCrossParagraphBorder()
