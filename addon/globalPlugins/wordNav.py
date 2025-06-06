@@ -1051,6 +1051,14 @@ def moveToCodePointOffset(textInfo, offset):
         else:
             raise e
 
+def computeWordStops(textInfo, pattern):
+    stops = [
+        m.start()
+        for m in pattern.finditer(textInfo.text)
+    ]
+    # dedupe:
+    stops = sorted(list(set(stops)))
+    return stops
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
     speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
@@ -1064,13 +1072,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
     MAX_ATTEMPTS = 10
     for attempt in range(MAX_ATTEMPTS):
         text = paragraphInfo.text
-        mylog(f"attempt! {caretOffset=} n={len(text)} {text=}")
-        stops = [
-            m.start()
-            for m in pattern.finditer(text)
-        ]
-        # dedupe:
-        stops = sorted(list(set(stops)))
+        stops = computeWordStops(paragraphInfo, pattern)
         while True:
             mylog(f"wt {stops=}")
             if direction > 0:
@@ -1081,7 +1083,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
             if 0 <= newWordIndex < len(stops):
                 # Next word found in the same paragraph
                 # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
-                mylog(f"Same Para!")
                 if attempt == 0 and wordCount > 1:
                     # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
                     newWordIndex += (wordCount - 1) * direction
@@ -1092,7 +1093,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     wordEndOffset = stops[newWordIndex + wordCount]
                     wordEndIsParagraphEnd = False
                 except IndexError:
-                    wordEndOffset = len(text)
+                    wordEndOffset = len(paragraphInfo.text)
                     wordEndIsParagraphEnd = True
                 try:
                     newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset)
@@ -1110,6 +1111,20 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     else:
                         # This has never been observed yet.
                         raise RuntimeError(f"Cursor didn't move {direction=}")
+                if direction > 0 and wordEndIsParagraphEnd:
+                    # When word wrap in Notepad++ is enabled, then the last character of this paragraph is identical to the first character of the next paragraph.
+                    # We need to check if this character represents a new word in the next paragraph, and if so - advance to it instead.
+                    nextParaTestInfo = newCaretInfo.copy()
+                    nextParaTestInfo.collapse()
+                    _expandParagraph(nextParaTestInfo)
+                    if nextParaTestInfo.compareEndPoints(paragraphInfo, 'startToStart') > 0:
+                        nextStops = computeWordStops(nextParaTestInfo, pattern)
+                        if len(nextStops) > 0 and nextStops[0] == 0:
+                            # At this point we verified that the first word of the next paragraph starts at exactly the same spot where current paragraph ends.
+                            # So we delete the last stop in the current paragraph and try again -
+                            # this will jump to the next paragraph and find the first word there.
+                            del stops[newWordIndex]
+                            continue #inner loop
                 try:
                     wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset)
                 except MoveToCodePointOffsetError as e:
@@ -1137,7 +1152,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 return
             else:
                 # New word found in the next paragraph!
-                mylog(f"Next Para!")
                 crossedParagraph = True
                 if not _moveToNextParagraph(paragraphInfo, direction):
                     chimeNoNextWord()
