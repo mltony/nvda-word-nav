@@ -811,6 +811,8 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
         return textInfo
         
     
+    # The following two functions are modified from NVDA commit 7a42d8ef1
+    
     def _iterRecursiveText_wordNav(self, ti: offsets.OffsetsTextInfo, controlStack, formatConfig):
         encoder = ti._getOffsetEncoder()
         seenCharacters = 0
