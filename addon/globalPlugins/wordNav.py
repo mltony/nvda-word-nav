@@ -1304,17 +1304,9 @@ def script_selectByWordWordNav(self,gesture):
         selectTrailingSpace = not selectTrailingSpace
     if selectTrailingSpace:
         patternEnd = pattern
-    if isVSCode:
-        caretInfo = makeVSCodeTextInfo(self, textInfos.POSITION_CARET)
-        if caretInfo is None:
-            chimeNoNextWord()
-            return
-        selectionInfo = makeVSCodeTextInfo(self, textInfos.POSITION_SELECTION)
-        oldInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
-    else:
-        caretInfo, selectionInfo = makeCaretTextInfo(self)
-        selectionInfo = selectionInfo or self.makeTextInfo(textInfos.POSITION_SELECTION)
-        oldInfo = selectionInfo.copy()
+    caretInfo, selectionInfo = makeCaretTextInfo(self)
+    selectionInfo = selectionInfo or self.makeTextInfo(textInfos.POSITION_SELECTION)
+    oldInfo = selectionInfo.copy()
     fakeCaretMode = isFakeCaretMode(caretInfo)
     if isBrowseMode or fakeCaretMode:
         if isBrowseMode:
