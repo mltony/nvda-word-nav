@@ -1075,30 +1075,23 @@ def computeWordStops(text, pattern):
     return stops
 
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
-    t0 = time.time()
     speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     paragraphInfo = caretInfo.copy()
-    ss="p5";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     _expandParagraph(paragraphInfo)
-    ss="p6";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     pretextInfo = paragraphInfo.copy()
     pretextInfo.setEndPoint(caretInfo, 'endToEnd')
     caretOffset = len(pretextInfo.text)
-    ss="p7";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     crossedParagraph = False
     MAX_ATTEMPTS = 10
-    ss="p10";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     for attempt in range(MAX_ATTEMPTS):
         if isinstance(paragraphInfo, MozillaCompoundTextInfo):
             text, mapping = paragraphInfo._getTextWith_Mapping_wordNav()
         else:
             text = paragraphInfo.text
             mapping = None
-        ss="p20";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
         stops = computeWordStops(text, pattern)
-        ss="p30";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
         try:
             while True:
                 mylog(f"wt {stops=}")
@@ -1108,7 +1101,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
                 mylog(f"{newWordIndex=}")
                 if 0 <= newWordIndex < len(stops):
-                    ss="p40";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     # Next word found in the same paragraph
                     # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
                     if attempt == 0 and wordCount > 1:
@@ -1123,16 +1115,13 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     except IndexError:
                         wordEndOffset = len(paragraphInfo.text)
                         wordEndIsParagraphEnd = True
-                    ss="p45";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     try:
                         newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset, mapping)
                     except MoveToCodePointOffsetError:
-                        ss="p46";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                         # This happens in MSWord when trying to navigate over bulleted list item.
                         mylog(f"Oops cannot move to word start offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
                         del stops[newWordIndex]
                         continue #inner loop
-                    ss="p47";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     if newCaretInfo.compareEndPoints(caretInfo, "startToStart") == 0:
                         if direction < 0:
                             mylog(f"Oh no, caret didn't move at all when moving backward. offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
@@ -1156,7 +1145,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                                 # this will jump to the next paragraph and find the first word there.
                                 del stops[newWordIndex]
                                 continue #inner loop
-                    ss="p48";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     try:
                         wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset, mapping)
                     except MoveToCodePointOffsetError as e:
@@ -1165,7 +1153,6 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                             raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
                         del stops[newWordIndex + wordCount]
                         continue # inner loop
-                    ss="p49";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     wordInfo = newCaretInfo.copy()
                     wordInfo.setEndPoint(wordEndInfo, "endToEnd")
                     newCaretInfo.updateCaret()
@@ -1182,10 +1169,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
                     if crossedParagraph:
                         chimeCrossParagraphBorder()
-                    ss="p50";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     return
                 else:
-                    ss="p60";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     # New word found in the next paragraph!
                     crossedParagraph = True
                     if not _moveToNextParagraph(paragraphInfo, direction):
