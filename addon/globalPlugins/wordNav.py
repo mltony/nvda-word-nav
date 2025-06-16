@@ -786,6 +786,14 @@ def _moveToNextParagraph(
     return True
 
 
+def disposeMapping(mapping):
+    if mapping is None:
+        return
+    for textInfo in mapping.values():
+        # Manually releasing hard references to the objects we didn't need.
+        # As if Python no longer has a GC.
+        del textInfo._hardObj
+
 def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
     # My optimized implementation sucks - doesn't work correctly in some cases
     # E.g. in Gmail editor with spelling errors.
@@ -979,8 +987,13 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
                 pass
         return "".join(text), stringIndicesToTextInfos
         
-    def moveToCodepointOffset_wordNav(self, codepointOffset):
-        text, mapping = self._getTextWith_Mapping_wordNav()
+    def moveToCodepointOffset_wordNav(self, codepointOffset, mapping=None):
+        
+        if mapping is None:
+            text, mapping = self._getTextWith_Mapping_wordNav()
+            needToDisposeMapping = True
+        else:
+            needToDisposeMapping = False
         knownOffsets = sorted(list(mapping.keys()))
         i = bisect.bisect_right(knownOffsets, codepointOffset) - 1
         knownOffset = knownOffsets[i]
@@ -992,10 +1005,8 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
         anchor = self.copy()
         anchor._start = anchor._end = innerAnchor
         anchor._startObj = anchor._endObj = innerAnchor._hardObj
-        for textInfo in mapping.values():
-            # Manually releasing hard references to the objects we didn't need.
-            # As if Python no longer has a GC.
-            del textInfo._hardObj
+        if needToDisposeMapping:
+            disposeMapping(mapping)
         return anchor
         
     def moveToCodepointOffset_wordNav_generic(self, codepointOffset):
@@ -1027,10 +1038,13 @@ def isPlainMozillaCompoundTextInfo(textInfo):
             return True
     return False
 
-def moveToCodePointOffset(textInfo, offset):
+def moveToCodePointOffset(textInfo, offset, mapping=None):
     exceptionMessage = "Unable to find desired offset in TextInfo."
     try:
-        return textInfo.moveToCodepointOffset_wordNav(offset)
+        if isinstance(textInfo, MozillaCompoundTextInfo):
+            return textInfo.moveToCodepointOffset_wordNav(offset, mapping)
+        else:
+            return textInfo.moveToCodepointOffset_wordNav(offset)
     except RuntimeError as e:
         if str(e) == exceptionMessage:
             raise MoveToCodePointOffsetError(e)
@@ -1051,117 +1065,140 @@ def moveToCodePointOffset(textInfo, offset):
         else:
             raise e
 
-def computeWordStops(textInfo, pattern):
+def computeWordStops(text, pattern):
     stops = [
         m.start()
-        for m in pattern.finditer(textInfo.text)
+        for m in pattern.finditer(text)
     ]
     # dedupe:
     stops = sorted(list(set(stops)))
     return stops
+
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
+    t0 = time.time()
     speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
         raise RuntimeError("Caret must be collapsed")
     paragraphInfo = caretInfo.copy()
+    ss="p5";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     _expandParagraph(paragraphInfo)
+    ss="p6";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     pretextInfo = paragraphInfo.copy()
     pretextInfo.setEndPoint(caretInfo, 'endToEnd')
     caretOffset = len(pretextInfo.text)
+    ss="p7";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     crossedParagraph = False
     MAX_ATTEMPTS = 10
+    ss="p10";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
     for attempt in range(MAX_ATTEMPTS):
-        text = paragraphInfo.text
-        stops = computeWordStops(paragraphInfo, pattern)
-        while True:
-            mylog(f"wt {stops=}")
-            if direction > 0:
-                newWordIndex = bisect.bisect_right(stops, caretOffset)
-            else:
-                newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
-            mylog(f"{newWordIndex=}")
-            if 0 <= newWordIndex < len(stops):
-                # Next word found in the same paragraph
-                # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
-                if attempt == 0 and wordCount > 1:
-                    # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
-                    newWordIndex += (wordCount - 1) * direction
-                    newWordIndex = max(0, newWordIndex)
-                    newWordIndex = min(newWordIndex, len(stops) - 1)
-                newCaretOffset = stops[newWordIndex]
-                try:
-                    wordEndOffset = stops[newWordIndex + wordCount]
-                    wordEndIsParagraphEnd = False
-                except IndexError:
-                    wordEndOffset = len(paragraphInfo.text)
-                    wordEndIsParagraphEnd = True
-                try:
-                    newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset)
-                except MoveToCodePointOffsetError:
-                    # This happens in MSWord when trying to navigate over bulleted list item.
-                    mylog(f"Oops cannot move to word start offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
-                    del stops[newWordIndex]
-                    continue #inner loop
-                if newCaretInfo.compareEndPoints(caretInfo, "startToStart") == 0:
-                    if direction < 0:
-                        mylog(f"Oh no, caret didn't move at all when moving backward. offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
-                        # This happens in MSWord with UIA enabled when trying to move over a bulleted list item.
+        if isinstance(paragraphInfo, MozillaCompoundTextInfo):
+            text, mapping = paragraphInfo._getTextWith_Mapping_wordNav()
+        else:
+            text = paragraphInfo.text
+            mapping = None
+        ss="p20";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+        stops = computeWordStops(text, pattern)
+        ss="p30";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+        try:
+            while True:
+                mylog(f"wt {stops=}")
+                if direction > 0:
+                    newWordIndex = bisect.bisect_right(stops, caretOffset)
+                else:
+                    newWordIndex = bisect.bisect_left(stops, caretOffset) - 1
+                mylog(f"{newWordIndex=}")
+                if 0 <= newWordIndex < len(stops):
+                    ss="p40";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                    # Next word found in the same paragraph
+                    # We will move to it unless moveToCodePointOffset fails, in which case we'll have to drop that stop and repeat the inner while loop again.
+                    if attempt == 0 and wordCount > 1:
+                        # newWordIndex at this point already implies that we moved by 1 word. If requested to move by wordCount words, need to move by (wordCount - 1) more.
+                        newWordIndex += (wordCount - 1) * direction
+                        newWordIndex = max(0, newWordIndex)
+                        newWordIndex = min(newWordIndex, len(stops) - 1)
+                    newCaretOffset = stops[newWordIndex]
+                    try:
+                        wordEndOffset = stops[newWordIndex + wordCount]
+                        wordEndIsParagraphEnd = False
+                    except IndexError:
+                        wordEndOffset = len(paragraphInfo.text)
+                        wordEndIsParagraphEnd = True
+                    ss="p45";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                    try:
+                        newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset, mapping)
+                    except MoveToCodePointOffsetError:
+                        ss="p46";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                        # This happens in MSWord when trying to navigate over bulleted list item.
+                        mylog(f"Oops cannot move to word start offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
                         del stops[newWordIndex]
                         continue #inner loop
-                    else:
-                        # This has never been observed yet.
-                        raise RuntimeError(f"Cursor didn't move {direction=}")
-                if direction > 0 and wordEndIsParagraphEnd:
-                    # When word wrap in Notepad++ is enabled, then the last character of this paragraph is identical to the first character of the next paragraph.
-                    # We need to check if this character represents a new word in the next paragraph, and if so - advance to it instead.
-                    nextParaTestInfo = newCaretInfo.copy()
-                    nextParaTestInfo.collapse()
-                    _expandParagraph(nextParaTestInfo)
-                    if nextParaTestInfo.compareEndPoints(paragraphInfo, 'startToStart') > 0:
-                        nextStops = computeWordStops(nextParaTestInfo, pattern)
-                        if len(nextStops) > 0 and nextStops[0] == 0:
-                            # At this point we verified that the first word of the next paragraph starts at exactly the same spot where current paragraph ends.
-                            # So we delete the last stop in the current paragraph and try again -
-                            # this will jump to the next paragraph and find the first word there.
+                    ss="p47";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                    if newCaretInfo.compareEndPoints(caretInfo, "startToStart") == 0:
+                        if direction < 0:
+                            mylog(f"Oh no, caret didn't move at all when moving backward. offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
+                            # This happens in MSWord with UIA enabled when trying to move over a bulleted list item.
                             del stops[newWordIndex]
                             continue #inner loop
-                try:
-                    wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset)
-                except MoveToCodePointOffsetError as e:
-                    mylog(f"Oops cannot move to word end offset={wordEndOffset} - deleting stops[{newWordIndex + wordCount}]={stops[newWordIndex + wordCount]}")
-                    if wordEndIsParagraphEnd:
-                        raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
-                    del stops[newWordIndex + wordCount]
-                    continue # inner loop
-                wordInfo = newCaretInfo.copy()
-                wordInfo.setEndPoint(wordEndInfo, "endToEnd")
-                newCaretInfo.updateCaret()
-                doRight = direction < 0
-                if isinstance(newCaretInfo, MozillaCompoundTextInfo):
-                    # Also Chrome sometimes forgets cursor location if updated via accessibility API, 
-                    # for example when doing alt-tab right after updating,
-                    # so fake keyboard commands:
-                    executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, globalGestureCounter))
-                if isinstance(newCaretInfo, ScintillaTextInfo):
-                    # Notepad++ doesn't remember cursor position when updated from here and then navigating by line up or down
-                    # This hack makes it remember new position
-                    executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, globalGestureCounter))
-                speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
-                if crossedParagraph:
-                    chimeCrossParagraphBorder()
-                return
-            else:
-                # New word found in the next paragraph!
-                crossedParagraph = True
-                if not _moveToNextParagraph(paragraphInfo, direction):
-                    chimeNoNextWord()
+                        else:
+                            # This has never been observed yet.
+                            raise RuntimeError(f"Cursor didn't move {direction=}")
+                    if direction > 0 and wordEndIsParagraphEnd:
+                        # When word wrap in Notepad++ is enabled, then the last character of this paragraph is identical to the first character of the next paragraph.
+                        # We need to check if this character represents a new word in the next paragraph, and if so - advance to it instead.
+                        nextParaTestInfo = newCaretInfo.copy()
+                        nextParaTestInfo.collapse()
+                        _expandParagraph(nextParaTestInfo)
+                        if nextParaTestInfo.compareEndPoints(paragraphInfo, 'startToStart') > 0:
+                            nextStops = computeWordStops(nextParaTestInfo.text, pattern)
+                            if len(nextStops) > 0 and nextStops[0] == 0:
+                                # At this point we verified that the first word of the next paragraph starts at exactly the same spot where current paragraph ends.
+                                # So we delete the last stop in the current paragraph and try again -
+                                # this will jump to the next paragraph and find the first word there.
+                                del stops[newWordIndex]
+                                continue #inner loop
+                    ss="p48";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                    try:
+                        wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset, mapping)
+                    except MoveToCodePointOffsetError as e:
+                        mylog(f"Oops cannot move to word end offset={wordEndOffset} - deleting stops[{newWordIndex + wordCount}]={stops[newWordIndex + wordCount]}")
+                        if wordEndIsParagraphEnd:
+                            raise RuntimeError("moveToCodePointOffset unexpectedly failed to move to the end of paragraph", e)
+                        del stops[newWordIndex + wordCount]
+                        continue # inner loop
+                    ss="p49";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                    wordInfo = newCaretInfo.copy()
+                    wordInfo.setEndPoint(wordEndInfo, "endToEnd")
+                    newCaretInfo.updateCaret()
+                    doRight = direction < 0
+                    if isinstance(newCaretInfo, MozillaCompoundTextInfo):
+                        # Also Chrome sometimes forgets cursor location if updated via accessibility API, 
+                        # for example when doing alt-tab right after updating,
+                        # so fake keyboard commands:
+                        executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, globalGestureCounter))
+                    if isinstance(newCaretInfo, ScintillaTextInfo):
+                        # Notepad++ doesn't remember cursor position when updated from here and then navigating by line up or down
+                        # This hack makes it remember new position
+                        executeAsynchronously(asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, globalGestureCounter))
+                    speech.speakTextInfo(wordInfo, unit=textInfos.UNIT_WORD, reason=REASON_CARET)
+                    if crossedParagraph:
+                        chimeCrossParagraphBorder()
+                    ss="p50";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
                     return
-                if direction > 0:
-                    caretOffset = -1
                 else:
-                    caretOffset = INFINITY
-                # Now break out of inner while loop and iterate the outer loop one more time
-                break
+                    ss="p60";t1 = time.time(); dt = int(1000*(t1-t0)); t0 = t1;log.warn(f"{ss} {dt} ms")
+                    # New word found in the next paragraph!
+                    crossedParagraph = True
+                    if not _moveToNextParagraph(paragraphInfo, direction):
+                        chimeNoNextWord()
+                        return
+                    if direction > 0:
+                        caretOffset = -1
+                    else:
+                        caretOffset = INFINITY
+                    # Now break out of inner while loop and iterate the outer loop one more time
+                    break
+        finally:
+            disposeMapping(mapping)
 
 doWordMove.__doc__ = _("WordNav move by word")
 doWordMove.category = _("WordNav")
