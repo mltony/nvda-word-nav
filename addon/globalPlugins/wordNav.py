@@ -747,6 +747,13 @@ def _expandParagraph(info):
         collapsedInfo.collapse(end=True)
         if collapsedInfo.compareEndPoints(info, "endToEnd") < 0:
             info.setEndPoint(collapsedInfo, "endToEnd")
+    elif isinstance(info, MozillaCompoundTextInfo):
+        # Sometimes in an empty paragraph in Chrome it expands past the length of text.
+        # This appears to be a bug in NVDA textInfo implementation, rather than Chrome.
+        # Working around that here.
+        endLen = info._end._getStoryLength()
+        if info._end._endOffset > endLen:
+            info._end._endOffset = endLen
 
 def _moveToNextParagraph(
         paragraph: textInfos.TextInfo,
