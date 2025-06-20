@@ -1134,17 +1134,22 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                     if direction > 0 and wordEndIsParagraphEnd:
                         # When word wrap in Notepad++ is enabled, then the last character of this paragraph is identical to the first character of the next paragraph.
                         # We need to check if this character represents a new word in the next paragraph, and if so - advance to it instead.
-                        nextParaTestInfo = newCaretInfo.copy()
-                        nextParaTestInfo.collapse()
-                        _expandParagraph(nextParaTestInfo)
-                        if nextParaTestInfo.compareEndPoints(paragraphInfo, 'startToStart') > 0:
-                            nextStops = computeWordStops(nextParaTestInfo.text, pattern)
-                            if len(nextStops) > 0 and nextStops[0] == 0:
-                                # At this point we verified that the first word of the next paragraph starts at exactly the same spot where current paragraph ends.
-                                # So we delete the last stop in the current paragraph and try again -
-                                # this will jump to the next paragraph and find the first word there.
-                                del stops[newWordIndex]
-                                continue #inner loop
+                        nextParaTextInfo = newCaretInfo.copy()
+                        nextParaTextInfo.collapse()
+                        _expandParagraph(nextParaTextInfo)
+                        if nextParaTextInfo.compareEndPoints(paragraphInfo, 'startToStart') > 0:
+                            nextParaTextInfoText = nextParaTextInfo.text
+                            # Check if text of new paragraph is just a newline character.
+                            # Paragraph segmentation in Chrome contenteditables is sometimes weird and it splits a single newline character into its own paragraph.
+                            # We shouldn't consider such paragraphs, so filter them out here.
+                            if nextParaTextInfoText not in ['\r', '\n', '\r\n']:
+                                nextStops = computeWordStops(nextParaTextInfoText, pattern)
+                                if len(nextStops) > 0 and nextStops[0] == 0:
+                                    # At this point we verified that the first word of the next paragraph starts at exactly the same spot where current paragraph ends.
+                                    # So we delete the last stop in the current paragraph and try again -
+                                    # this will jump to the next paragraph and find the first word there.
+                                    del stops[newWordIndex]
+                                    continue #inner loop
                     try:
                         wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset, mapping)
                     except MoveToCodePointOffsetError as e:
