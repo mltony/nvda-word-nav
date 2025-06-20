@@ -988,13 +988,17 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
         return "".join(text), stringIndicesToTextInfos
         
     def moveToCodepointOffset_wordNav(self, codepointOffset, mapping=None):
-        
         if mapping is None:
             text, mapping = self._getTextWith_Mapping_wordNav()
             needToDisposeMapping = True
         else:
             needToDisposeMapping = False
         knownOffsets = sorted(list(mapping.keys()))
+        if len(knownOffsets) == 0:
+            # Must be an empty textInfo, so we can only move to offset 0
+            if codepointOffset == 0:
+                return self.copy()
+            raise ValueError
         i = bisect.bisect_right(knownOffsets, codepointOffset) - 1
         knownOffset = knownOffsets[i]
         innerTextInfo = mapping[knownOffset]
