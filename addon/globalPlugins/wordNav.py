@@ -1030,6 +1030,15 @@ def patchMoveToCodepointOffsetInCompoundMozillaTextInfo():
     textInfos.TextInfo.moveToCodepointOffset_wordNav = moveToCodepointOffset_wordNav_generic
 
 patchMoveToCodepointOffsetInCompoundMozillaTextInfo()
+# In NVDA 2025.1 someone introduced a buggy commit that breaks textInfo.collapse for Notepad++.
+# Patching it here - but hopefully this commit will get reverted in NVDA.
+# More info: https://github.com/nvaccess/nvda/issues/18320
+try:
+    from NVDAObjects.window.scintilla import ScintillaTextInfo
+    del ScintillaTextInfo.collapse
+except AttributeError:
+    # Hopefully this has been fixed then
+    pass
 
 class MoveToCodePointOffsetError(Exception):
     pass
