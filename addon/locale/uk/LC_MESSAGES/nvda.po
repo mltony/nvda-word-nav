@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: WordNav\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2024-05-07 03:50+0000\n"
-"PO-Revision-Date: 2024-07-28 17:53+0300\n"
+"POT-Creation-Date: 2025-09-02 12:27+0000\n"
+"PO-Revision-Date: 2025-09-02 15:39+0300\n"
 "Last-Translator: Heorhii Halas <nvda.translation.uk@gmail.com>\n"
 "Language-Team: Kostyantyn Hladkyi (Ukrainian NVDA Community)\n"
 "Language: uk\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
-"X-Generator: Poedit 3.4.4\n"
+"X-Generator: Poedit 3.7\n"
 "X-Poedit-Basepath: ../../../globalPlugins\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-SearchPath-0: .\n"
@@ -21,47 +21,58 @@ msgstr ""
 #. Add-on summary, usually the user visible name of the addon.
 #. Translators: Summary for this add-on
 #. to be shown on installation and add-on information found in Add-ons Manager.
+#: addon/globalPlugins/wordNav.py:246 addon/globalPlugins/wordNav.py:1214
+#: addon/globalPlugins/wordNav.py:1515 buildVars.py:23
 msgid "WordNav"
 msgstr "Навігація по словах"
 
+#: addon/globalPlugins/wordNav.py:248
 msgid "Default NVDA word navigation (WordNav disabled)"
 msgstr "Навігація по словах NVDA початково (WordNav вимкнено)"
 
+#: addon/globalPlugins/wordNav.py:249
 msgid "Notepad++ style navigation"
 msgstr "Навігація у стилі Notepad++"
 
+#: addon/globalPlugins/wordNav.py:250
 msgid "Bulky word navigation"
 msgstr "Навігація по довгих словах"
 
+#: addon/globalPlugins/wordNav.py:251
 msgid "Fine word navigation - good for programming"
 msgstr "Тонка навігація по словах - добре для програмування"
 
+#: addon/globalPlugins/wordNav.py:252
 msgid "MultiWord navigation - reads multiple words at once"
 msgstr "Багатослівна навігація - одночасне читання кількох слів"
 
+#: addon/globalPlugins/wordNav.py:253
 msgid "Custom regular expression word navigation"
 msgstr "Навігація по словах за допомогою користувацьких регулярних виразів"
 
+#: addon/globalPlugins/wordNav.py:256
 msgid "Unassigned"
 msgstr "Непризначено"
 
 #. checkbox override move by word
 #. Translators: Checkbox for override move by word
+#: addon/globalPlugins/wordNav.py:263
 msgid "Enable WordNav in editables"
 msgstr "Увімкнути навігацію по словах у полях редагування"
 
 #. checkbox enableInBrowseMode
 #. Translators: Checkbox for enableInBrowseMode
+#: addon/globalPlugins/wordNav.py:268
 msgid "Enable WordNav in browse mode."
 msgstr "Увімкнути навігацію  по словах в режимі огляду."
 
 #. checkbox enableSelection
-#, fuzzy
-#| msgid "Enable WordNav in editables"
+#: addon/globalPlugins/wordNav.py:272
 msgid "Enable WordNav word selection"
-msgstr "Увімкнути навігацію по словах у полях редагування"
+msgstr "Увімкнути виділення слів навігації по словах"
 
 #. checkbox select trailing space
+#: addon/globalPlugins/wordNav.py:276
 msgid ""
 "Include trailing space when selecting words with control+shift+rightArrow"
 msgstr ""
@@ -70,60 +81,73 @@ msgstr ""
 
 #. left control assignment Combo box
 #. Translators: Label for left control assignment combo box
+#: addon/globalPlugins/wordNav.py:281
 msgid "Left control behavior:"
 msgstr "Поведінка лівого Control:"
 
 #. right control assignment Combo box
 #. Translators: Label for right control assignment combo box
+#: addon/globalPlugins/wordNav.py:286
 msgid "Right control behavior:"
 msgstr "Поведінка правого Control:"
 
 #. Left Control+Windows assignment Combo box
 #. Translators: Label for control+windows assignment combo box
+#: addon/globalPlugins/wordNav.py:291
 msgid "Left Control+Windows behavior:"
 msgstr "Поведінка лівого Control+Windos:"
 
 #. Right Control+Windows assignment Combo box
 #. Translators: Label for control+windows assignment combo box
+#: addon/globalPlugins/wordNav.py:297
 msgid "Right Control+Windows behavior:"
 msgstr "Поведінка правого Control+Windows:"
 
 #. bulkyWordPunctuation
 #. Translators: Label for bulkyWordPunctuation edit box
+#: addon/globalPlugins/wordNav.py:302
 msgid "Bulky word separators:"
 msgstr "Розділювачі довгих слів:"
 
 #. Custom word regex
+#: addon/globalPlugins/wordNav.py:306
 msgid "Custom word regular expression:"
 msgstr "Користувацький регулярний вираз для слів:"
 
 #. Custom word end regex
+#: addon/globalPlugins/wordNav.py:309
 msgid "Optional Custom word end regular expression for word selection:"
 msgstr ""
 "Необов'язково Користувацький регулярний вираз для виділення кінця слова:"
 
 #. MultiWord word count
 #. Translators: Label for multiWord wordCount edit box
+#: addon/globalPlugins/wordNav.py:313
 msgid "Word count for multiWord navigation:"
 msgstr "Кількість слів для багатослівної навігації:"
 
 #. paragraphChimeVolumeSlider
 #. Translators: Paragraph crossing chime volume
+#: addon/globalPlugins/wordNav.py:317
 msgid "Volume of chime when crossing paragraph border"
 msgstr "Гучність сигналу при перетині межі абзацу"
 
 #. applicationsBlacklist edit
 #. Translators: Label for blacklisted applications edit box
+#: addon/globalPlugins/wordNav.py:323
 msgid "Disable WordNav in applications (comma-separated list)"
 msgstr "Вимкнути навігацію по словах у програмах (список, розділений комами)"
 
 #. checkbox Disable in Google Docs
+#: addon/globalPlugins/wordNav.py:326
 msgid "Disable in Google Docs"
 msgstr "Вимкнути в Google Документах"
 
+#: addon/globalPlugins/wordNav.py:336
 msgid "WordCount must be a positive integer greater than 2."
 msgstr "Кількість слів має бути цілим додатнім числом, більше ніж 2."
 
+#: addon/globalPlugins/wordNav.py:632
 msgid ""
 "Error: in order for word navigation to work correctly in VSCode, please "
 "install the following:\n"
@@ -137,11 +161,11 @@ msgstr ""
 "2. Розширення VSCode: доступність для NVDA IndentNav.\n"
 "Для отримання додаткової інформації зверніться до файлу Readme WordNav."
 
-#, fuzzy
-#| msgid "WordNav"
+#: addon/globalPlugins/wordNav.py:637 addon/globalPlugins/wordNav.py:647
 msgid "WordNav error"
-msgstr "Навігація по словах"
+msgstr "Помилка навігації по словах"
 
+#: addon/globalPlugins/wordNav.py:641
 msgid ""
 "Error: in order for word navigation to work correctly in VSCode, please "
 "install the following:\n"
@@ -159,12 +183,13 @@ msgstr ""
 "Будь ласка, зверніться до файлу Readme WordNav для отримання додаткової "
 "інформації."
 
+#: addon/globalPlugins/wordNav.py:1213
 msgid "WordNav move by word"
 msgstr "WordNav переміщення по словам"
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-#, fuzzy
-#| msgid "Improved navigate by word commands."
+#: buildVars.py:26
 msgid "Improved navigate by word and word selection commands."
-msgstr "Покращена навігація по словах за допомогою відповідних команд."
+msgstr ""
+"Покращена навігація та виділення по словах за допомогою відповідних команд."
