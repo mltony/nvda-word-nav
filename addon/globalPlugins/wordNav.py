@@ -353,6 +353,48 @@ class SettingsDialog(SettingsPanel):
 
 
 
+# Cache NVDAHelper/localLib detection so it doesn't branch on every beep call
+_cachedBeepFunc = None
+
+def generateBeepWrapped(buffer, freq, duration, volLeft, volRight):
+    global _cachedBeepFunc
+
+    if _cachedBeepFunc:
+        return _cachedBeepFunc(buffer, int(freq), int(duration), int(volLeft), int(volRight))
+
+    try:
+        import NVDAHelper
+
+        # Preferred modern path
+        if hasattr(NVDAHelper, "localLib"):
+            lib = NVDAHelper.localLib
+            if hasattr(lib, "generateBeep"):
+                _cachedBeepFunc = lib.generateBeep
+                return _cachedBeepFunc(buffer, freq, duration, volLeft, volRight)
+            if hasattr(lib, "_nvdaControllerInternal_generateBeep"):
+                _cachedBeepFunc = lib._nvdaControllerInternal_generateBeep
+                return _cachedBeepFunc(buffer, freq, duration, volLeft, volRight)
+
+        # Legacy NVDAHelper
+        if hasattr(NVDAHelper, "generateBeep"):
+            _cachedBeepFunc = NVDAHelper.generateBeep
+            return _cachedBeepFunc(buffer, freq, duration, volLeft, volRight)
+
+    except Exception as e:
+        log.debug(f"browserNav: generateBeep detection failure: {e}")
+
+    # Fallback only once
+    def _fallback(buf, f, d, l, r):
+        if buf is None:
+            try:
+                tones.beep(f, d)
+            except:
+                pass
+        return 0
+
+    _cachedBeepFunc = _fallback
+    return _cachedBeepFunc(buffer, freq, duration, volLeft, volRight)
+
 class Beeper:
     BASE_FREQ = speech.IDT_BASE_FREQUENCY
     def getPitch(self, indent):
@@ -367,13 +409,13 @@ class Beeper:
         levels = self.uniformSample(levels, self.MAX_BEEP_COUNT )
         beepLen = self.BEEP_LEN
         pauseLen = self.PAUSE_LEN
-        pauseBufSize = NVDAHelper.generateBeep(None,self.BASE_FREQ,pauseLen,0, 0)
-        beepBufSizes = [NVDAHelper.generateBeep(None, self.getPitch(l), beepLen, volume, volume) for l in levels]
+        pauseBufSize = generateBeepWrapped(None,self.BASE_FREQ,pauseLen,0, 0)
+        beepBufSizes = [generateBeepWrapped(None, self.getPitch(l), beepLen, volume, volume) for l in levels]
         bufSize = sum(beepBufSizes) + len(levels) * pauseBufSize
         buf = ctypes.create_string_buffer(bufSize)
         bufPtr = 0
         for l in levels:
-            bufPtr += NVDAHelper.generateBeep(
+            bufPtr += generateBeepWrapped(
                 ctypes.cast(ctypes.byref(buf, bufPtr), ctypes.POINTER(ctypes.c_char)),
                 self.getPitch(l), beepLen, volume, volume)
             bufPtr += pauseBufSize  # add a short pause
@@ -410,14 +452,14 @@ class Beeper:
         bufSize = 0
         bufSizes = []
         for freq in freqs:
-            size = NVDAHelper.generateBeep(None, freq, beepLen, left, right)
+            size = generateBeepWrapped(None, freq, beepLen, left, right)
             bufSizes.append(size)
             if size > bufSize:
                 bufSize = size
         buf = ctypes.create_string_buffer(bufSize)
         totalSamples = None
         for freq in freqs:
-            NVDAHelper.generateBeep(buf, freq, beepLen, left, right)
+            generateBeepWrapped(buf, freq, beepLen, left, right)
             samples = struct.unpack("<%dh" % (bufSize // sampleWidth), buf.raw[:bufSize])
             if totalSamples is None:
                 totalSamples = list(samples)
