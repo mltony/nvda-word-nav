@@ -363,7 +363,6 @@ def generateBeepWrapped(buffer, freq, duration, volLeft, volRight):
         return _cachedBeepFunc(buffer, int(freq), int(duration), int(volLeft), int(volRight))
 
     try:
-        import NVDAHelper
 
         # Preferred modern path
         if hasattr(NVDAHelper, "localLib"):
@@ -381,7 +380,6 @@ def generateBeepWrapped(buffer, freq, duration, volLeft, volRight):
             return _cachedBeepFunc(buffer, freq, duration, volLeft, volRight)
 
     except Exception as e:
-        log.debug(f"browserNav: generateBeep detection failure: {e}")
 
     # Fallback only once
     def _fallback(buf, f, d, l, r):
