@@ -1094,6 +1094,25 @@ def computeWordStops(text, pattern):
     stops = sorted(list(set(stops)))
     return stops
 
+def smartMoveToCodePointOffset(newCaretOffset, caretOffset, paragraphInfo, pretextInfo, posttextInfo, mapping):
+    """
+    Builtin moveToCodePointOffset can be sluggish sometimes. This is very pronounced in Google Chrome address bar,
+    that switched to UIA implementation around 2025.
+    Implementation of textInfo.move(Character) seems to be linear in the number of characters and noticeably slow.
+    To work around this, we call move not from the beginning of the paragraph, but from current known cursor position when possible.
+    """
+    if mapping is not None or pretextInfo is None or posttextInfo is None:
+        # Either moveToCodePointOffset is fast(mapping means we're in Chrome compound textInfo), feed it with paragraphInfo
+        # Or pretext or postText is not available - meaning we're just crossed paragraph border.
+        newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset, mapping)
+    elif newCaretOffset >= caretOffset:
+        # moveToCodePointOffset could be sluggish, especially in UIA in Chrome.
+        # Move by character seems to be making an IPC call for every character.
+        newCaretInfo = moveToCodePointOffset(posttextInfo, newCaretOffset-caretOffset)
+    else:
+        newCaretInfo = moveToCodePointOffset(pretextInfo, newCaretOffset)
+    return newCaretInfo
+
 def doWordMove(caretInfo, pattern, direction, wordCount=1):
     speech.clearTypedWordBuffer()
     if not caretInfo.isCollapsed:
@@ -1103,6 +1122,8 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
     pretextInfo = paragraphInfo.copy()
     pretextInfo.setEndPoint(caretInfo, 'endToEnd')
     caretOffset = len(pretextInfo.text)
+    posttextInfo = paragraphInfo.copy()
+    posttextInfo.setEndPoint(caretInfo, 'startToStart')
     crossedParagraph = False
     MAX_ATTEMPTS = 10
     for attempt in range(MAX_ATTEMPTS):
@@ -1136,7 +1157,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                         wordEndOffset = len(paragraphInfo.text)
                         wordEndIsParagraphEnd = True
                     try:
-                        newCaretInfo = moveToCodePointOffset(paragraphInfo, newCaretOffset, mapping)
+                        newCaretInfo = smartMoveToCodePointOffset(newCaretOffset, caretOffset, paragraphInfo, pretextInfo, posttextInfo, mapping)
                     except MoveToCodePointOffsetError:
                         # This happens in MSWord when trying to navigate over bulleted list item.
                         mylog(f"Oops cannot move to word start offset={newCaretOffset} - deleting stops[{newWordIndex}]={stops[newWordIndex]}")
@@ -1171,7 +1192,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                                     del stops[newWordIndex]
                                     continue #inner loop
                     try:
-                        wordEndInfo = moveToCodePointOffset(paragraphInfo, wordEndOffset, mapping)
+                        wordEndInfo = smartMoveToCodePointOffset(wordEndOffset, caretOffset, paragraphInfo, pretextInfo, posttextInfo, mapping)
                     except MoveToCodePointOffsetError as e:
                         mylog(f"Oops cannot move to word end offset={wordEndOffset} - deleting stops[{newWordIndex + wordCount}]={stops[newWordIndex + wordCount]}")
                         if wordEndIsParagraphEnd:
@@ -1198,6 +1219,7 @@ def doWordMove(caretInfo, pattern, direction, wordCount=1):
                 else:
                     # New word found in the next paragraph!
                     crossedParagraph = True
+                    pretextInfo = posttextInfo = None
                     if not _moveToNextParagraph(paragraphInfo, direction):
                         chimeNoNextWord()
                         return
