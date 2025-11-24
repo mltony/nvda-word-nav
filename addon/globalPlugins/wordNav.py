@@ -367,13 +367,13 @@ class Beeper:
         levels = self.uniformSample(levels, self.MAX_BEEP_COUNT )
         beepLen = self.BEEP_LEN
         pauseLen = self.PAUSE_LEN
-        pauseBufSize = NVDAHelper.generateBeep(None,self.BASE_FREQ,pauseLen,0, 0)
-        beepBufSizes = [NVDAHelper.generateBeep(None, self.getPitch(l), beepLen, volume, volume) for l in levels]
+        pauseBufSize = NVDAHelper.localLib.generateBeep(None,self.BASE_FREQ,pauseLen,0, 0)
+        beepBufSizes = [NVDAHelper.localLib.generateBeep(None, self.getPitch(l), beepLen, volume, volume) for l in levels]
         bufSize = sum(beepBufSizes) + len(levels) * pauseBufSize
         buf = ctypes.create_string_buffer(bufSize)
         bufPtr = 0
         for l in levels:
-            bufPtr += NVDAHelper.generateBeep(
+            bufPtr += NVDAHelper.localLib.generateBeep(
                 ctypes.cast(ctypes.byref(buf, bufPtr), ctypes.POINTER(ctypes.c_char)),
                 self.getPitch(l), beepLen, volume, volume)
             bufPtr += pauseBufSize  # add a short pause
@@ -410,14 +410,14 @@ class Beeper:
         bufSize = 0
         bufSizes = []
         for freq in freqs:
-            size = NVDAHelper.generateBeep(None, freq, beepLen, left, right)
+            size = NVDAHelper.localLib.generateBeep(None, freq, beepLen, left, right)
             bufSizes.append(size)
             if size > bufSize:
                 bufSize = size
         buf = ctypes.create_string_buffer(bufSize)
         totalSamples = None
         for freq in freqs:
-            NVDAHelper.generateBeep(buf, freq, beepLen, left, right)
+            NVDAHelper.localLib.generateBeep(buf, freq, beepLen, left, right)
             samples = struct.unpack("<%dh" % (bufSize // sampleWidth), buf.raw[:bufSize])
             if totalSamples is None:
                 totalSamples = list(samples)
