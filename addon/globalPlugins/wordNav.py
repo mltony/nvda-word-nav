@@ -516,12 +516,12 @@ def asyncUpdateNotepadPPCursorWhenModifiersReleased(doRight, localGestureCounter
         keystroke.send()
 
 
-def isBlacklistedApp(self):
-    focus = self
-    appName = focus.appModule.appName
-    if appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(","):
-        return True
-    return False
+def isBlacklistedApp(obj):
+	"""Return whether WordNav is disabled for the object's application."""
+	appModule = getattr(obj, "appModule", None)
+	if appModule is None:
+		return False
+	return appModule.appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(",")
 
 
 def getUrl(obj):
