@@ -46,7 +46,6 @@ import threading
 import time
 import tones
 import types
-import ui
 import watchdog
 import wave
 import winUser
@@ -204,6 +203,8 @@ def generateWordReBulky(punctuation=None, browseMode=False):
     ps = r"(?<=[%s])(\s|$)" % punctuation
     pw = r"(?<=[%s])%s" % (punctuation, w)
     s = wrEmpty if browseMode else wrEol
+    if not punctuation:
+        return f"{s}|{wrNewline}|{sw}", f"{s}|{wrNewline}|{ws}"
     wordReBulkyString = f"{s}|{wrNewline}|{sw}|{sp}|{pw}"
     wordEndReBulkyString = f"{s}|{wrNewline}|{ws}|{ps}|{pw}"
     return wordReBulkyString, wordEndReBulkyString
@@ -327,14 +328,42 @@ class SettingsDialog(SettingsPanel):
         self.DisableInGoogleDocsCheckbox = sHelper.addItem(wx.CheckBox(self, label=label))
         self.DisableInGoogleDocsCheckbox.Value = getConfig("disableInGoogleDocs")
 
-    def onSave(self):
+    def isValid(self) -> bool:
+        """Validate the word count and custom expressions before saving settings."""
         try:
             if int(self.wordCountEdit.Value) <= 1:
-                raise Exception()
-        except:
+                raise ValueError
+        except ValueError:
+            self._validationErrorMessageBox(
+                # Translators: Error shown for an invalid MultiWord word count.
+                message=_("Word count must be an integer of at least 2."),
+                # Translators: Label of the MultiWord word count setting.
+                option=_("Word count for multiWord navigation:"),
+            )
             self.wordCountEdit.SetFocus()
-            ui.message(_("WordCount must be a positive integer greater than 2."))
-            return
+            return False
+        for control, option in (
+            # Translators: Label of the custom word boundary expression setting.
+            (self.customWordRegexEdit, _("Custom word regular expression:")),
+            (
+                self.customWordEndRegexEdit,
+                # Translators: Label of the optional custom word end expression setting.
+                _("Optional Custom word end regular expression for word selection:"),
+            ),
+        ):
+            try:
+                re.compile(control.Value)
+            except re.error as error:
+                self._validationErrorMessageBox(
+                    # Translators: Error shown for an invalid custom word regular expression.
+                    message=_("Invalid regular expression: %s") % str(error),
+                    option=option,
+                )
+                control.SetFocus()
+                return False
+        return True
+
+    def onSave(self):
         setConfig("overrideMoveByWord", self.overrideMoveByWordCheckbox.Value)
         setConfig("enableInBrowseMode", self.enableInBrowseModeCheckbox.Value)
         setConfig("enableSelection", self.enableSelectionCheckbox.Value)
