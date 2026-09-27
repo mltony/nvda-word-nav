@@ -550,7 +550,7 @@ def isBlacklistedApp(obj):
 	appModule = getattr(obj, "appModule", None)
 	if appModule is None:
 		return False
-	return appModule.appName.lower() in getConfig("applicationsBlacklist").lower().strip().split(",")
+	return appModule.appName.lower() in map(str.strip, getConfig("applicationsBlacklist").lower().split(","))
 
 
 def getUrl(obj):
@@ -1544,7 +1544,7 @@ def script_selectByCharacterWordNav(self,gesture):
     speech.clearTypedWordBuffer()
     selectionInfo = self.makeTextInfo(textInfos.POSITION_SELECTION)
     fakeCaretMode = isFakeCaretMode(selectionInfo)
-    if not fakeCaretMode:
+    if not fakeCaretMode or not getConfig("enableSelection") or isBlacklistedApp(self):
         try:
             return self.script_caret_changeSelection(gesture)
         except AttributeError:
