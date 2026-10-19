@@ -35,3 +35,17 @@ Please note, however, that currently used accessibility APIs have multiple issue
 ##  Downloads
 
 Please install the latest version from NVDA add-on store.
+
+## Development
+
+Install [uv](https://docs.astral.sh/uv/) and GNU gettext, then run `uv sync` to install the Python 3.13 build tools.
+Run `uv run scons` to package the add-on and `uv run scons pot` to generate the translation template.
+
+For lint and formatting checks in PowerShell, run:
+
+```powershell
+$env:PREK_SKIP = 'no-commit-to-branch,pyright'
+uv run prek run --all-files
+```
+
+Pyright remains configured for separate type checking; it is skipped in the add-on build workflow while the existing code is prepared for strict checks.
