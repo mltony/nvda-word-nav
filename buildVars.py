@@ -22,10 +22,18 @@ addon_info = AddonInfo(
 	# Translators: Long description to be shown for this add-on on add-on information from add-on store
 	addon_description=_("""Improved navigate by word and word selection commands."""),
 	# version
-	addon_version="2.2.15",
+	addon_version="2.2.16",
 	# Brief changelog for this version
 	# Translators: what's new content for the add-on version to be shown in the add-on store
-	addon_changelog=_("Fixed an error that could occur when using WordNav after reloading add-ons."),
+	addon_changelog=_(
+		"1. Invalid MultiWord counts and custom regular expressions are now reported before settings are saved, "
+		"keeping the dialog open and focusing the field that needs correction.\n"
+		"2. Fixed word navigation and selection when the Bulky word separator list is empty.\n"
+		"3. Shift+Left/Right now uses the application's normal selection behavior when WordNav word selection "
+		"is disabled or the application is excluded.\n"
+		"4. Application exclusions now correctly handle spaces around individual names in comma-separated lists.\n"
+		"5. Updated the build tooling to the current NVDA AddonTemplate.",
+	),
 	# Author(s)
 	addon_author="Tony Malykh <anton.malykh@gmail.com>",
 	# URL for the add-on documentation support
